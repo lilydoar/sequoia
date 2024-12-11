@@ -2,6 +2,7 @@
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_init.h"
+#include "SDL3/SDL_log.h"
 #include "SDL3/SDL_video.h"
 
 #include <SDL3/SDL.h>
@@ -13,6 +14,8 @@
 #define WINDOW_H 600
 
 int main(int argc, char **argv) {
+  SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
+
   if (!SDL_Init(SDL_INIT_VIDEO)) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "SDL initialization failed: %s\n",
                  SDL_GetError());
@@ -29,6 +32,8 @@ int main(int argc, char **argv) {
     SDL_Quit();
     return 1;
   }
+  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Created GPU device: %s",
+               SDL_GetGPUDeviceDriver(device));
 
   SDL_Window *window = SDL_CreateWindow(NULL, WINDOW_W, WINDOW_H, 0);
   if (window == NULL) {
