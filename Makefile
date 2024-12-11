@@ -3,7 +3,7 @@ CC = cc
 PKGCONFIG = `pkg-config --cflags --libs sdl3`
 
 # File names
-TARGET = program
+TARGET = bin/program
 SOURCES = src/main.c
 
 # Default target
