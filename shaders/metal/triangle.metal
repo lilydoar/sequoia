@@ -3,23 +3,23 @@
 #include <metal_texture>
 using namespace metal;
 
-#line 1349 "diff.meta.slang"
+#line 1334 "diff.meta.slang"
 struct _MatrixStorage_float4x4_ColMajornatural_0
 {
     array<float4, int(4)> data_0;
 };
 
 
-#line 1349
+#line 1334
 matrix<float,int(4),int(4)>  unpackStorage_0(_MatrixStorage_float4x4_ColMajornatural_0 _S1)
 {
 
-#line 1349
+#line 1334
     return matrix<float,int(4),int(4)> (_S1.data_0[int(0)][int(0)], _S1.data_0[int(1)][int(0)], _S1.data_0[int(2)][int(0)], _S1.data_0[int(3)][int(0)], _S1.data_0[int(0)][int(1)], _S1.data_0[int(1)][int(1)], _S1.data_0[int(2)][int(1)], _S1.data_0[int(3)][int(1)], _S1.data_0[int(0)][int(2)], _S1.data_0[int(1)][int(2)], _S1.data_0[int(2)][int(2)], _S1.data_0[int(3)][int(2)], _S1.data_0[int(0)][int(3)], _S1.data_0[int(1)][int(3)], _S1.data_0[int(2)][int(3)], _S1.data_0[int(3)][int(3)]);
 }
 
 
-#line 16 "content/shaders/slang/triangle.slang"
+#line 16 "shaders/slang/triangle.slang"
 struct VertexStageOutput_0
 {
     float3 color_0 [[user(COARSEVERTEX)]];

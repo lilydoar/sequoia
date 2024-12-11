@@ -16,11 +16,6 @@
 #define WINDOW_W 800
 #define WINDOW_H 600
 
-struct Vertex {
-  float position[3];
-  float color[3];
-};
-
 struct Context {
   SDL_GPUDevice *device;
   SDL_Window *window;
@@ -112,13 +107,18 @@ SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file,
   return shader;
 }
 
+struct Vertex {
+  float position[3];
+  float color[3];
+};
+
 int main(int argc, char **argv) {
   struct Context context;
   if (!initWindow(&context)) {
     return 1;
   }
 
-  const char *file = "content/shaders/metal/triangle.metal";
+  const char *file = "shaders/metal/triangle.metal";
   SDL_GPUShader *vertex = loadShader(context.device, file, "vertexMain",
                                      SDL_GPU_SHADERSTAGE_VERTEX);
   if (vertex == NULL) {
