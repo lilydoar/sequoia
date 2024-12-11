@@ -13,7 +13,7 @@ struct KernelContext_0
 
 
 #line 8
-[[kernel]] void computeMain(uint3 threadId_0 [[thread_position_in_grid]], float device* result_1 [[buffer(2)]], float device* buffer0_1 [[buffer(0)]], float device* buffer1_1 [[buffer(1)]])
+[[kernel]] void main(uint3 threadId_0 [[thread_position_in_grid]], float device* result_1 [[buffer(2)]], float device* buffer0_1 [[buffer(0)]], float device* buffer1_1 [[buffer(1)]])
 {
 
 #line 8

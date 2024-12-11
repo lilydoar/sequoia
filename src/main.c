@@ -2,16 +2,45 @@
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_init.h"
+#include "SDL3/SDL_iostream.h"
 #include "SDL3/SDL_log.h"
 #include "SDL3/SDL_video.h"
 
 #include <SDL3/SDL.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 #define WINDOW_W 800
 #define WINDOW_H 600
+
+SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file) {
+  size_t size;
+  void *contents = SDL_LoadFile(file, &size);
+  if (contents == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Shader file load failed: %s\n",
+                 SDL_GetError());
+    return NULL;
+  }
+
+  SDL_GPUShaderCreateInfo info = {
+      .code_size = size,
+      .code = contents,
+      .entrypoint = "mainVertex",
+      .format = SDL_GPU_SHADERFORMAT_MSL,
+      .stage = SDL_GPU_SHADERSTAGE_VERTEX,
+  };
+
+  SDL_GPUShader *shader = SDL_CreateGPUShader(device, &info);
+  if (shader == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Shader creation failed: %s\n",
+                 SDL_GetError());
+    return NULL;
+  }
+
+  return shader;
+}
 
 int main(int argc, char **argv) {
   SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
@@ -53,6 +82,8 @@ int main(int argc, char **argv) {
     SDL_Quit();
     return 1;
   }
+
+  SDL_GPUShader *shader = loadShader();
 
   bool quit = false;
   while (!quit) {
