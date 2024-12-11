@@ -17,9 +17,66 @@
 #define WINDOW_H 600
 
 struct Vertex {
-  float position[3]; // x, y, z position
-  float color[3];    // r, g, b color
-} Vertex;
+  float position[3];
+  float color[3];
+};
+
+struct Context {
+  SDL_GPUDevice *device;
+  SDL_Window *window;
+};
+
+bool initWindow(struct Context *context) {
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Initialize SDL: %s\n",
+                 SDL_GetError());
+    return false;
+  }
+
+  SDL_GPUDevice *device =
+      SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_MSL, true, NULL);
+  if (device == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create GPU device: %s\n",
+                 SDL_GetError());
+    SDL_Quit();
+    return false;
+  }
+  SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Created GPU device: %s",
+              SDL_GetGPUDeviceDriver(device));
+
+  SDL_Window *window = SDL_CreateWindow(NULL, WINDOW_W, WINDOW_H, 0);
+  if (window == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create window: %s\n", SDL_GetError());
+    SDL_DestroyGPUDevice(device);
+    SDL_Quit();
+    return false;
+  }
+
+  if (!SDL_ClaimWindowForGPUDevice(device, window)) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Claim window for GPU: %s\n",
+                 SDL_GetError());
+    SDL_ReleaseWindowFromGPUDevice(device, window);
+    SDL_DestroyWindow(window);
+    SDL_DestroyGPUDevice(device);
+    SDL_Quit();
+    return false;
+  }
+
+  struct Context c = {
+      .device = device,
+      .window = window,
+  };
+  *context = c;
+
+  return true;
+}
+
+void deinitWindow(struct Context context) {
+  SDL_ReleaseWindowFromGPUDevice(context.device, context.window);
+  SDL_DestroyWindow(context.window);
+  SDL_DestroyGPUDevice(context.device);
+  SDL_Quit();
+}
 
 SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file,
                           const char *entryPoint, SDL_GPUShaderStage stage) {
@@ -56,54 +113,19 @@ SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file,
 }
 
 int main(int argc, char **argv) {
-  SDL_SetLogPriority(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_DEBUG);
-
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "SDL initialization failed: %s\n",
-                 SDL_GetError());
-    return 1;
-  }
-
-  SDL_GPUShaderFormat flags = SDL_GPU_SHADERFORMAT_SPIRV |
-                              SDL_GPU_SHADERFORMAT_DXIL |
-                              SDL_GPU_SHADERFORMAT_MSL;
-  SDL_GPUDevice *device = SDL_CreateGPUDevice(flags, true, NULL);
-  if (device == NULL) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "GPU Device creation failed: %s\n",
-                 SDL_GetError());
-    SDL_Quit();
-    return 1;
-  }
-  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Created GPU device: %s",
-               SDL_GetGPUDeviceDriver(device));
-
-  SDL_Window *window = SDL_CreateWindow(NULL, WINDOW_W, WINDOW_H, 0);
-  if (window == NULL) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Window creation failed: %s\n",
-                 SDL_GetError());
-    SDL_DestroyGPUDevice(device);
-    SDL_Quit();
-    return 1;
-  }
-
-  if (!SDL_ClaimWindowForGPUDevice(device, window)) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "GPU failed to claim window: %s\n",
-                 SDL_GetError());
-    SDL_ReleaseWindowFromGPUDevice(device, window);
-    SDL_DestroyWindow(window);
-    SDL_DestroyGPUDevice(device);
-    SDL_Quit();
+  struct Context context;
+  if (!initWindow(&context)) {
     return 1;
   }
 
   const char *file = "content/shaders/metal/triangle.metal";
-  SDL_GPUShader *vertex =
-      loadShader(device, file, "vertexMain", SDL_GPU_SHADERSTAGE_VERTEX);
+  SDL_GPUShader *vertex = loadShader(context.device, file, "vertexMain",
+                                     SDL_GPU_SHADERSTAGE_VERTEX);
   if (vertex == NULL) {
     return 1;
   }
-  SDL_GPUShader *fragment =
-      loadShader(device, file, "fragmentMain", SDL_GPU_SHADERSTAGE_FRAGMENT);
+  SDL_GPUShader *fragment = loadShader(context.device, file, "fragmentMain",
+                                       SDL_GPU_SHADERSTAGE_FRAGMENT);
   if (fragment == NULL) {
     return 1;
   }
@@ -129,7 +151,8 @@ int main(int argc, char **argv) {
       },
   };
   SDL_GPUColorTargetDescription colorTarget = {
-      .format = SDL_GetGPUSwapchainTextureFormat(device, window),
+      .format =
+          SDL_GetGPUSwapchainTextureFormat(context.device, context.window),
   };
   SDL_GPUGraphicsPipelineCreateInfo info = {
       .vertex_shader = vertex,
@@ -149,15 +172,15 @@ int main(int argc, char **argv) {
           },
   };
   SDL_GPUGraphicsPipeline *pipeline =
-      SDL_CreateGPUGraphicsPipeline(device, &info);
+      SDL_CreateGPUGraphicsPipeline(context.device, &info);
   if (pipeline == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR,
                  "Graphics pipeline creation failed: %s\n", SDL_GetError());
     return 1;
   }
 
-  SDL_ReleaseGPUShader(device, vertex);
-  SDL_ReleaseGPUShader(device, fragment);
+  SDL_ReleaseGPUShader(context.device, vertex);
+  SDL_ReleaseGPUShader(context.device, fragment);
 
   struct Vertex triangleVertices[3] = {
       {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}}, // Bottom left (red)
@@ -171,10 +194,10 @@ int main(int argc, char **argv) {
       .props = 0,
   };
   SDL_GPUTransferBuffer *vertexTransferBuffer =
-      SDL_CreateGPUTransferBuffer(device, &vertexTransferBufferInfo);
+      SDL_CreateGPUTransferBuffer(context.device, &vertexTransferBufferInfo);
 
   struct Vertex *vertexTransferData =
-      SDL_MapGPUTransferBuffer(device, vertexTransferBuffer, false);
+      SDL_MapGPUTransferBuffer(context.device, vertexTransferBuffer, false);
   if (vertexTransferData == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR,
                  "Mapping GPU transfer buffer failed: %s\n", SDL_GetError());
@@ -185,20 +208,21 @@ int main(int argc, char **argv) {
   vertexTransferData[1] = triangleVertices[1];
   vertexTransferData[2] = triangleVertices[2];
 
-  SDL_UnmapGPUTransferBuffer(device, vertexTransferBuffer);
+  SDL_UnmapGPUTransferBuffer(context.device, vertexTransferBuffer);
 
   SDL_GPUBufferCreateInfo vertexBufferInfo = {
       .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
       .size = sizeof(triangleVertices),
       .props = 0,
   };
-  SDL_GPUBuffer *vertexBuffer = SDL_CreateGPUBuffer(device, &vertexBufferInfo);
+  SDL_GPUBuffer *vertexBuffer =
+      SDL_CreateGPUBuffer(context.device, &vertexBufferInfo);
   if (vertexBuffer == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Vertex buffer creation failed: %s\n",
                  SDL_GetError());
     return 1;
   }
-  SDL_SetGPUBufferName(device, vertexBuffer, "Vertex Buffer");
+  SDL_SetGPUBufferName(context.device, vertexBuffer, "Vertex Buffer");
 
   // Identity matrix
   // clang-format off
@@ -216,10 +240,10 @@ int main(int argc, char **argv) {
       .props = 0,
   };
   SDL_GPUTransferBuffer *uniformTransferBuffer =
-      SDL_CreateGPUTransferBuffer(device, &uniformTransferBufferInfo);
+      SDL_CreateGPUTransferBuffer(context.device, &uniformTransferBufferInfo);
 
   float *uniformTransferData =
-      SDL_MapGPUTransferBuffer(device, uniformTransferBuffer, false);
+      SDL_MapGPUTransferBuffer(context.device, uniformTransferBuffer, false);
   if (uniformTransferData == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR,
                  "Mapping GPU transfer buffer failed: %s\n", SDL_GetError());
@@ -230,7 +254,7 @@ int main(int argc, char **argv) {
     uniformTransferData[i] = modelViewProjectionMatrix[i];
   }
 
-  SDL_UnmapGPUTransferBuffer(device, uniformTransferBuffer);
+  SDL_UnmapGPUTransferBuffer(context.device, uniformTransferBuffer);
 
   SDL_GPUBufferCreateInfo uniformBufferInfo = {
       .usage = SDL_GPU_BUFFERUSAGE_GRAPHICS_STORAGE_READ,
@@ -238,16 +262,16 @@ int main(int argc, char **argv) {
       .props = 0,
   };
   SDL_GPUBuffer *uniformBuffer =
-      SDL_CreateGPUBuffer(device, &uniformBufferInfo);
+      SDL_CreateGPUBuffer(context.device, &uniformBufferInfo);
   if (uniformBuffer == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Uniform buffer creation failed: %s\n",
                  SDL_GetError());
     return 1;
   }
-  SDL_SetGPUBufferName(device, uniformBuffer, "Uniform Buffer");
+  SDL_SetGPUBufferName(context.device, uniformBuffer, "Uniform Buffer");
 
   SDL_GPUCommandBuffer *uploadCommandBuffer =
-      SDL_AcquireGPUCommandBuffer(device);
+      SDL_AcquireGPUCommandBuffer(context.device);
   if (uploadCommandBuffer == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR,
                  "Failed to acquire GPU command buffer: %s", SDL_GetError());
@@ -281,8 +305,8 @@ int main(int argc, char **argv) {
   SDL_EndGPUCopyPass(copyPass);
   SDL_SubmitGPUCommandBuffer(uploadCommandBuffer);
 
-  SDL_ReleaseGPUTransferBuffer(device, vertexTransferBuffer);
-  SDL_ReleaseGPUTransferBuffer(device, uniformTransferBuffer);
+  SDL_ReleaseGPUTransferBuffer(context.device, vertexTransferBuffer);
+  SDL_ReleaseGPUTransferBuffer(context.device, uniformTransferBuffer);
 
   bool quit = false;
   while (!quit) {
@@ -296,7 +320,7 @@ int main(int argc, char **argv) {
     }
 
     SDL_GPUCommandBuffer *renderCommandBuffer =
-        SDL_AcquireGPUCommandBuffer(device);
+        SDL_AcquireGPUCommandBuffer(context.device);
     if (renderCommandBuffer == NULL) {
       SDL_LogError(SDL_LOG_CATEGORY_ERROR,
                    "Failed to acquire GPU command buffer: %s", SDL_GetError());
@@ -304,7 +328,7 @@ int main(int argc, char **argv) {
     }
 
     SDL_GPUTexture *swapchainTexture;
-    if (!SDL_AcquireGPUSwapchainTexture(renderCommandBuffer, window,
+    if (!SDL_AcquireGPUSwapchainTexture(renderCommandBuffer, context.window,
                                         &swapchainTexture, NULL, NULL)) {
       SDL_LogError(SDL_LOG_CATEGORY_ERROR,
                    "Failed to aquire swap chain texture: %s", SDL_GetError());
@@ -325,9 +349,7 @@ int main(int argc, char **argv) {
         SDL_BeginGPURenderPass(renderCommandBuffer, &colorTargetInfo, 1, NULL);
 
     SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
-
     SDL_BindGPUVertexStorageBuffers(renderPass, 0, &uniformBuffer, 1);
-
     SDL_GPUBufferBinding binding = {
         .buffer = vertexBuffer,
         .offset = 0,
@@ -340,14 +362,11 @@ int main(int argc, char **argv) {
     SDL_SubmitGPUCommandBuffer(renderCommandBuffer);
   }
 
-  SDL_ReleaseGPUGraphicsPipeline(device, pipeline);
-  SDL_ReleaseGPUBuffer(device, vertexBuffer);
-  SDL_ReleaseGPUBuffer(device, uniformBuffer);
+  SDL_ReleaseGPUGraphicsPipeline(context.device, pipeline);
+  SDL_ReleaseGPUBuffer(context.device, vertexBuffer);
+  SDL_ReleaseGPUBuffer(context.device, uniformBuffer);
 
-  SDL_ReleaseWindowFromGPUDevice(device, window);
-  SDL_DestroyWindow(window);
-  SDL_DestroyGPUDevice(device);
-  SDL_Quit();
+  deinitWindow(context);
 
   return 0;
 }
