@@ -1,6 +1,6 @@
 # Compiler settings
 CC = cc
-CFLAGS = -Iexternal/cglm/include
+CFLAGS = -Iexternal/cglm/include -Iexternal/stb
 CGLM_LIB = external/cglm/build/libcglm.a
 PKGCONFIG = `pkg-config --cflags --libs sdl3`
 

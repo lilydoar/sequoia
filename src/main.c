@@ -5,10 +5,14 @@
 #include "SDL3/SDL_iostream.h"
 #include "SDL3/SDL_log.h"
 #include "SDL3/SDL_stdinc.h"
+#include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_video.h"
 
 #include "cglm/mat4.h"
 #include "cglm/types.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -38,8 +42,6 @@ bool initWindow(struct Context *context) {
     SDL_Quit();
     return false;
   }
-  SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Created GPU device: %s",
-              SDL_GetGPUDeviceDriver(device));
 
   SDL_Window *window = SDL_CreateWindow(NULL, WINDOW_W, WINDOW_H, 0);
   if (window == NULL) {
@@ -96,7 +98,6 @@ SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file,
       .num_storage_buffers = 1,
       .num_uniform_buffers = 0,
   };
-
   SDL_GPUShader *shader = SDL_CreateGPUShader(device, &info);
   if (shader == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Shader creation failed: %s\n",
@@ -104,9 +105,38 @@ SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file,
     SDL_free(contents);
     return NULL;
   }
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Loaded shader %s\n", file);
 
   SDL_free(contents);
   return shader;
+}
+
+SDL_Surface *loadImage(SDL_GPUDevice *device, const char *file) {
+  int width, height, channels;
+  unsigned char *pixels = stbi_load(file, &width, &height, &channels, 0);
+  if (pixels == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Image load failed: %s\n",
+                 stbi_failure_reason());
+    return NULL;
+  }
+  SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "Loaded image %s: %dx%dx%d\n", file,
+               width, height, channels);
+
+  SDL_Surface *surface = SDL_CreateSurfaceFrom(
+      width, height, SDL_PIXELFORMAT_RGBA8888, pixels, width * channels);
+  if (surface == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Surface creation failed: %s\n",
+                 SDL_GetError());
+    return NULL;
+  }
+
+  return surface;
+}
+
+void deinitImage(SDL_Surface *surface) {
+  void *pixels = surface->pixels;
+  SDL_DestroySurface(surface);
+  stbi_image_free(pixels);
 }
 
 struct Vertex {
@@ -115,6 +145,8 @@ struct Vertex {
 };
 
 int main(int argc, char **argv) {
+  SDL_SetLogPriorities(SDL_LOG_PRIORITY_DEBUG);
+
   struct Context context;
   if (!initWindow(&context)) {
     return 1;
@@ -129,6 +161,13 @@ int main(int argc, char **argv) {
   SDL_GPUShader *fragment = loadShader(context.device, file, "fragmentMain",
                                        SDL_GPU_SHADERSTAGE_FRAGMENT);
   if (fragment == NULL) {
+    return 1;
+  }
+
+  const char *textureFile =
+      "assets/sprites/Factions/Knights/Buildings/Castle/Castle_Blue.png";
+  SDL_Surface *surface = loadImage(context.device, textureFile);
+  if (surface == NULL) {
     return 1;
   }
 
@@ -359,6 +398,7 @@ int main(int argc, char **argv) {
   SDL_ReleaseGPUBuffer(context.device, vertexBuffer);
   SDL_ReleaseGPUBuffer(context.device, uniformBuffer);
 
+  deinitImage(surface);
   deinitWindow(context);
 
   return 0;
