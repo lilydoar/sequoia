@@ -1,6 +1,12 @@
-// Texture binding in a generic way
+// Texture binding
 Texture2D<float4> Texture;
 SamplerState Sampler;
+
+// Uniform data to be passed from application -> shader.
+cbuffer Uniforms
+{
+    float4x4 modelViewProjection;
+}
 
 // Input vertex data
 struct AssembledVertex
@@ -34,9 +40,11 @@ VertexStageOutput vertexMain(
     AssembledVertex assembledVertex)
 {
     VertexStageOutput output;
+
+    float3 position = assembledVertex.position;
     
     output.coarseVertex.texCoord = assembledVertex.texCoord;
-    output.sv_position = float4(assembledVertex.position, 1.0);
+    output.sv_position = mul(modelViewProjection, float4(position, 1.0));
     
     return output;
 }

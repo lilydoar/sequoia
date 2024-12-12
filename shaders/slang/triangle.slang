@@ -1,11 +1,5 @@
 // shaders.slang
 
-//
-// This file provides a simple vertex and fragment shader that can be compiled
-// using Slang. This code should also be valid as HLSL, and thus it does not
-// use any of the new language features supported by Slang.
-//
-
 // Uniform data to be passed from application -> shader.
 cbuffer Uniforms
 {
