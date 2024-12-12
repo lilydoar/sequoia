@@ -7,7 +7,9 @@
 #include "SDL3/SDL_stdinc.h"
 #include "SDL3/SDL_video.h"
 
-#include <SDL3/SDL.h>
+#include "cglm/mat4.h"
+#include "cglm/types.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -108,8 +110,8 @@ SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file,
 }
 
 struct Vertex {
-  float position[3];
-  float color[3];
+  vec3 position;
+  vec3 color;
 };
 
 int main(int argc, char **argv) {
@@ -224,15 +226,7 @@ int main(int argc, char **argv) {
   }
   SDL_SetGPUBufferName(context.device, vertexBuffer, "Vertex Buffer");
 
-  // Identity matrix
-  // clang-format off
-  float modelViewProjectionMatrix[16] = {
-    1.0f, 0.0f, 0.0f, 0.0f,
-    0.0f, 1.0f, 0.0f, 0.0f,
-    0.0f, 0.0f, 1.0f, 0.0f,
-    0.0f, 0.0f, 0.0f, 1.0f
-  };
-  // clang-format on
+  mat4 modelViewProjectionMatrix = GLM_MAT4_IDENTITY;
 
   SDL_GPUTransferBufferCreateInfo uniformTransferBufferInfo = {
       .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
@@ -242,7 +236,7 @@ int main(int argc, char **argv) {
   SDL_GPUTransferBuffer *uniformTransferBuffer =
       SDL_CreateGPUTransferBuffer(context.device, &uniformTransferBufferInfo);
 
-  float *uniformTransferData =
+  mat4 *uniformTransferData =
       SDL_MapGPUTransferBuffer(context.device, uniformTransferBuffer, false);
   if (uniformTransferData == NULL) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR,
@@ -250,9 +244,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  for (int i = 0; i < 16; i++) {
-    uniformTransferData[i] = modelViewProjectionMatrix[i];
-  }
+  memcpy(uniformTransferData, modelViewProjectionMatrix,
+         sizeof(modelViewProjectionMatrix));
 
   SDL_UnmapGPUTransferBuffer(context.device, uniformTransferBuffer);
 

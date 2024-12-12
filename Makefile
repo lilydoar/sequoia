@@ -1,5 +1,7 @@
 # Compiler settings
 CC = cc
+CFLAGS = -Iexternal/cglm/include
+CGLM_LIB = external/cglm/build/libcglm.a
 PKGCONFIG = `pkg-config --cflags --libs sdl3`
 
 # File names
@@ -11,7 +13,7 @@ all: $(TARGET)
 
 # Linking the program
 $(TARGET): $(SOURCES)
-	$(CC) $(SOURCES) $(PKGCONFIG) -o $(TARGET)
+	$(CC) $(SOURCES) $(CFLAGS) $(CGLM_LIB) $(PKGCONFIG) -o $(TARGET)
 
 # Clean built files
 clean:
