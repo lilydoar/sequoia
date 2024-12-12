@@ -111,7 +111,7 @@ SDL_GPUShader *loadShader(SDL_GPUDevice *device, const char *file,
   return shader;
 }
 
-SDL_Surface *loadImage(SDL_GPUDevice *device, const char *file) {
+SDL_Surface *loadImage(const char *file) {
   int width, height, channels;
   unsigned char *pixels = stbi_load(file, &width, &height, &channels, 0);
   if (pixels == NULL) {
@@ -144,7 +144,7 @@ struct Vertex {
   vec3 color;
 };
 
-int main(int argc, char **argv) {
+int main(void) {
   SDL_SetLogPriorities(SDL_LOG_PRIORITY_DEBUG);
 
   struct Context context;
@@ -164,9 +164,8 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  const char *textureFile =
-      "assets/sprites/Factions/Knights/Buildings/Castle/Castle_Blue.png";
-  SDL_Surface *surface = loadImage(context.device, textureFile);
+  SDL_Surface *surface = loadImage(
+      "assets/sprites/Factions/Knights/Buildings/Castle/Castle_Blue.png");
   if (surface == NULL) {
     return 1;
   }
