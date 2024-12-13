@@ -477,6 +477,7 @@ int main(void) {
         SDL_BeginGPURenderPass(renderCommandBuffer, &colorTargetInfo, 1, NULL);
 
     SDL_BindGPUGraphicsPipeline(renderPass, pipeline);
+
     SDL_BindGPUVertexStorageBuffers(renderPass, 0, &uniformBuffer, 1);
     SDL_GPUBufferBinding vertexBinding = {
         .buffer = vertexBuffer,
