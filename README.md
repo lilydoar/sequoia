@@ -8,6 +8,7 @@ Sequoia is a 2D game engine built for learning.
 - <http://shader-slang.com/slang/>
 - <https://github.com/recp/cglm>
 - <https://github.com/TheSpydog/SDL_gpu_examples/tree/main>
+- <http://nothings.org/stb_ds/>
 
 ## Stream
 
@@ -51,10 +52,29 @@ TriStrip, etc)
 DrawPrimitivesIndirect is SDL lang for triByIdx(comes with vertex data and
 offsets in pairs of 3)
 
-Sequioa notes:
+Steps to move data between the CPU and GPU
+
+1. Create GPU Transfer Buffer
+1. Get a pointer for where I should put the CPU data
+1. Memcopy data to that pointer(a function could do data transformation before
+   memcopying).
+1. Get a pointer for where I should put the GPU data
+1. Unmap the pointer. Then encode upload commands(Run UploadToGpuBuffer,
+   UploadToGpuTexture, etc)
+1. Run the upload(Submit the command buffer)
+
+- The SDL UploadBmdBuf has copy passes. I think I can run multiple copy passes
+  before submitting the cmd_buf
+- I think I want an interface where I can accumulate upload commands before the
+  creation of a copy pass. Then have a function which creates a copy pass,
+  applies all the commands, and then ends the copy pass
+
+# Sequioa notes
 
 Sequioa will have Types of Buckets. Buckets are just various types of Buffers.
 Sequioa defines a fixed set of transition types between Bucket types
 
-REAL_LIFE_TODO: Setup my gaming PC downstairs for the entire duration of the
-game jam. Goal is to always have a runnable build of the game going.
+Example Games
+
+1. move units around a map to construct buildings
+1. rhythm game
