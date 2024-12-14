@@ -150,6 +150,126 @@ struct TextureVertex {
   vec2 uv;
 };
 
+struct Texture {};
+struct Sprite {};
+
+struct Quad {
+  vec2 p1;
+  vec2 p2;
+};
+
+struct SEQ_RenderQueue {};
+struct SEQ_Bucket {};
+enum SEQ_LayerType {
+  SEQ_LAYER_TYPE_EMPTY,
+  SEQ_LAYER_TYPE_TILEMAP,
+  SEQ_LAYER_TYPE_ENTITY,
+  SEQ_LAYER_TYPE_UI,
+};
+struct SEQ_Layer {
+  enum SEQ_LayerType type;
+};
+
+/// The QueueUpload commmands prepare some data to be moved to the GPU.
+/// This holds onto SDL Transfer buffers and creates the relevant upload
+/// commands
+void SEQ_QueueUploadVertices(vec2 *vertices);
+void SEQ_QueueUploadVerticesWithIndices(vec2 *vertices, size_t indices);
+void SEQ_QueueUploadTexture(struct Texture *texure, size_t indices);
+/// Empties all queued GPU Transfer commands.
+/// This starts the move of the data to the GPU.
+void SEQ_EmptyGPUTransferQueue();
+
+struct Rect {};
+
+struct Tile {
+  struct Rect textureRect;
+};
+struct Tilemap {
+  struct Texture *textureAtlas;
+  // Map tile types to a name
+  char **names;
+  // Map tile types to a texture
+  struct Rect *textures;
+
+  uint32_t scale;
+  uint32_t width;
+  uint32_t height;
+  /// Warning: Only supports up to 255 tile types
+  uint8_t *tiles;
+};
+struct UI {};
+
+void SEQ_DrawTileMap(struct SEQ_RenderQueue rQueue, struct Tilemap *tMap);
+void SEQ_DrawUI(struct SEQ_RenderQueue rQueue, struct UI *ui);
+
+SDL_GPUGraphicsPipeline *createPipeline(struct Context *context,
+                                        SDL_GPUShader *vertexShader,
+                                        SDL_GPUShader *fragmentShader) {
+  // FIXME: Pipeline is hardcoded to texture vertices
+  SDL_GPUVertexBufferDescription vertexBufferDesc[] = {{
+      .slot = 0,
+      .pitch = sizeof(struct TextureVertex),
+      .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
+      .instance_step_rate = 0,
+  }};
+  SDL_GPUVertexAttribute vertexAttributes[] = {
+      {
+          .location = 0,
+          .buffer_slot = 0,
+          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
+          .offset = 0,
+      },
+      {
+          .location = 1,
+          .buffer_slot = 0,
+          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+          .offset = sizeof(vec3),
+      },
+  };
+  SDL_GPUColorTargetDescription colorTarget = {
+      .format =
+          SDL_GetGPUSwapchainTextureFormat(context->device, context->window),
+      .blend_state =
+          {
+              .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+              .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+              .color_blend_op = SDL_GPU_BLENDOP_ADD,
+              .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+              .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+              .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
+              .enable_blend = true,
+              .enable_color_write_mask = false,
+          },
+  };
+  SDL_GPUGraphicsPipelineCreateInfo info = {
+      .vertex_shader = vertexShader,
+      .fragment_shader = fragmentShader,
+      .vertex_input_state =
+          {
+              .vertex_buffer_descriptions = vertexBufferDesc,
+              .num_vertex_buffers = 1,
+              .vertex_attributes = vertexAttributes,
+              .num_vertex_attributes = 2,
+          },
+      .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
+      .target_info =
+          {
+              .color_target_descriptions = &colorTarget,
+              .num_color_targets = 1,
+          },
+  };
+  SDL_GPUGraphicsPipeline *pipeline =
+      SDL_CreateGPUGraphicsPipeline(context->device, &info);
+  if (pipeline == NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR,
+                 "Graphics pipeline creation failed: %s\n", SDL_GetError());
+    return NULL;
+  }
+
+  return pipeline;
+}
+
 int main(void) {
   SDL_SetLogPriorities(SDL_LOG_PRIORITY_DEBUG);
 
@@ -177,63 +297,9 @@ int main(void) {
     return 1;
   }
 
-  SDL_GPUVertexBufferDescription vertexBufferDesc[] = {{
-      .slot = 0,
-      .pitch = sizeof(struct TextureVertex),
-      .input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX,
-      .instance_step_rate = 0,
-  }};
-  SDL_GPUVertexAttribute vertexAttributes[] = {
-      {
-          .location = 0,
-          .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3,
-          .offset = 0,
-      },
-      {
-          .location = 1,
-          .buffer_slot = 0,
-          .format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-          .offset = sizeof(vec3),
-      },
-  };
-  SDL_GPUColorTargetDescription colorTarget = {
-      .format =
-          SDL_GetGPUSwapchainTextureFormat(context.device, context.window),
-      .blend_state =
-          {
-              .src_color_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-              .dst_color_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-              .color_blend_op = SDL_GPU_BLENDOP_ADD,
-              .src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_SRC_ALPHA,
-              .dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-              .alpha_blend_op = SDL_GPU_BLENDOP_ADD,
-              .enable_blend = true,
-              .enable_color_write_mask = false,
-          },
-  };
-  SDL_GPUGraphicsPipelineCreateInfo info = {
-      .vertex_shader = vertex,
-      .fragment_shader = fragment,
-      .vertex_input_state =
-          {
-              .vertex_buffer_descriptions = vertexBufferDesc,
-              .num_vertex_buffers = 1,
-              .vertex_attributes = vertexAttributes,
-              .num_vertex_attributes = 2,
-          },
-      .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-      .target_info =
-          {
-              .color_target_descriptions = &colorTarget,
-              .num_color_targets = 1,
-          },
-  };
   SDL_GPUGraphicsPipeline *pipeline =
-      SDL_CreateGPUGraphicsPipeline(context.device, &info);
+      createPipeline(&context, vertex, fragment);
   if (pipeline == NULL) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR,
-                 "Graphics pipeline creation failed: %s\n", SDL_GetError());
     return 1;
   }
 
