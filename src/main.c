@@ -11,6 +11,7 @@
 
 #include "cglm/mat4.h"
 #include "cglm/types.h"
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -31,21 +32,11 @@
 #define CHANNELS 2
 #define BUFFER_SIZE (SAMPLE_RATE * CHANNELS * RECORDING_BUFFER_SECONDS)
 
-struct RecordingBuffer {
-  /*  // Buffer to store recorded audio*/
-  /*int16_t recordingBuffer[BUFFER_SIZE];*/
-  /*size_t recordingPos = 0;*/
-  /*SDL_AudioDeviceID recordingDevice;*/
-  // Buffer to store recorded audio
-  int16_t *recordingBuffer;
-  size_t recordingSize;
-  size_t recordingPos;
-  SDL_AudioDeviceID recordingDevice;
-};
-
 struct Context {
   SDL_GPUDevice *device;
   SDL_Window *window;
+  SDL_AudioStream *recording;
+  SDL_AudioStream *playback;
 };
 
 bool initAudio(struct Context *context) {
@@ -54,21 +45,18 @@ bool initAudio(struct Context *context) {
                  SDL_GetError());
     return false;
   }
-  /*int recordingDeviceCount = SDL_GetNumAudioDevices();*/
 
-  /*SDL_AudioSpec want, have;*/
-  /*SDL_zero(want);*/
-  /*want.freq = SAMPLE_RATE;*/
-  /*want.format = AUDIO_S16;*/
-  /*want.channels = CHANNELS;*/
-  /*want.samples = 4096; // Buffer size in samples*/
-  /*want.callback = audioCallback;*/
-
-  int deviceCount;
-  SDL_AudioDeviceID *devices = SDL_GetAudioRecordingDevices(&deviceCount);
-  for (size_t i = 0; i < deviceCount; i++) {
-    /*SDL_AudioSpec spec = SDL_Spec*/
-    /*SDL_OpenAudioDevice(i, const SDL_AudioSpec *spec)*/
+  context->recording = SDL_OpenAudioDeviceStream(
+      SDL_AUDIO_DEVICE_DEFAULT_RECORDING, NULL, NULL, NULL);
+  if (context->recording == NULL) {
+    SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Could not open audio-recording: %s\n",
+                SDL_GetError());
+  }
+  context->playback = SDL_OpenAudioDeviceStream(
+      SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL, NULL, NULL);
+  if (context->playback == NULL) {
+    SDL_LogWarn(SDL_LOG_CATEGORY_AUDIO, "Could not open audio-playback: %s\n",
+                SDL_GetError());
   }
 
   return true;
@@ -324,43 +312,29 @@ SDL_GPUGraphicsPipeline *createPipeline(struct Context *context,
 
 struct BufferSpec {};
 
-struct AmbientSoundBuffer {
-  SDL_AudioSpec fromSpec;
-  SDL_AudioSpec toSpec;
-  SDL_AudioStream *stream;
-  struct BufferSpec bspec;
+struct AudioBuffer {
+  SDL_AudioStream *inStream;
   uint8_t *buffer;
   size_t buffer_size;
+  size_t buffer_pos;
 };
-struct AmbientSoundBuffer initAmbientSoundBuffer() {
-  int count;
-  SDL_AudioDeviceID *devices = SDL_GetAudioRecordingDevices(&count);
-  for (int i = 0; i < count; i++) {
-    SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "Found audio device: %d\n",
-                 devices[i]);
-  }
-
-  /*SDL_AudioStream *SDL_CreateAudioStream(const SDL_AudioSpec *src_spec,*/
-  /*                                       const SDL_AudioSpec *dst_spec);*/
-
-  SDL_AudioSpec fromSpec = {};
-  SDL_AudioSpec toSpec = {};
-  SDL_AudioStream *stream = SDL_CreateAudioStream(&fromSpec, &toSpec);
-  SDL_GetAudioStreamFormat(stream, &fromSpec, &toSpec);
-  SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "Audio stream format: %s -> %s\n",
-               SDL_GetAudioFormatName(fromSpec.format),
-               SDL_GetAudioFormatName(toSpec.format));
-
-  struct AmbientSoundBuffer asb = {
-      .fromSpec = fromSpec,
-      .toSpec = toSpec,
-      .stream = stream,
-      .buffer = NULL,
-      .buffer_size = 0,
-  };
-  return asb;
+void deinit(struct AudioBuffer self);
+size_t AudioBufferSpaceRemaining(struct AudioBuffer self) {
+  assert(self.buffer_size >= self.buffer_pos);
+  return self.buffer_size - self.buffer_pos;
 }
-void deinit(struct AmbientSoundBuffer self);
+bool AudioBufferIsFull(struct AudioBuffer self) {
+  assert(self.buffer_pos <= self.buffer_size);
+  return self.buffer_pos >= self.buffer_size;
+}
+size_t AudioBufferRecord(struct AudioBuffer self) {
+  if (AudioBufferIsFull(self)) {
+    return 0;
+  }
+  size_t recorded = SDL_GetAudioStreamData(self.inStream, self.buffer,
+                                           AudioBufferSpaceRemaining(self));
+  return recorded;
+}
 void *capture() {
   /*bool SDL_PutAudioStreamData(SDL_AudioStream *stream, const void *buf, int
      len);*/
@@ -369,8 +343,9 @@ void *capture() {
 void *transform();
 void *sample();
 
+// TODO: Make me play some sound
 int command_ambient_audio_demo(void) {
-  SDL_SetLogPriorities(SDL_LOG_PRIORITY_DEBUG);
+  SDL_SetLogPriorities(SDL_LOG_PRIORITY_TRACE);
 
   struct Context context;
   if (!initWindow(&context)) {
@@ -380,15 +355,12 @@ int command_ambient_audio_demo(void) {
     return 1;
   }
 
-  // Buffer to store recorded audio
-  struct RecordingBuffer buffer = {
-      .recordingBuffer = malloc(BUFFER_SIZE),
-      .recordingSize = BUFFER_SIZE,
-      .recordingPos = 0,
-      .recordingDevice = 0,
+  struct AudioBuffer recordingBuffer = {
+      .inStream = context.recording,
+      .buffer = malloc(sizeof(BUFFER_SIZE)),
+      .buffer_size = BUFFER_SIZE,
+      .buffer_pos = 0,
   };
-
-  /*struct AmbientSoundBuffer buffer = initAmbientSoundBuffer();*/
 
   bool quit = false;
   while (!quit) {
@@ -400,6 +372,9 @@ int command_ambient_audio_demo(void) {
         break;
       }
     }
+
+    size_t recorded = AudioBufferRecord(recordingBuffer);
+    SDL_LogTrace(SDL_LOG_CATEGORY_AUDIO, "Recorded %zu bytes\n", recorded);
   }
 
   deinitWindow(context);
