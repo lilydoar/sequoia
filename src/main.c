@@ -1,3 +1,4 @@
+#include "SDL3/SDL_audio.h"
 #include "SDL3/SDL_error.h"
 #include "SDL3/SDL_events.h"
 #include "SDL3/SDL_gpu.h"
@@ -11,6 +12,7 @@
 #include "cglm/mat4.h"
 #include "cglm/types.h"
 #include <stdint.h>
+#include <stdlib.h>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -23,14 +25,58 @@
 #define WINDOW_W 800
 #define WINDOW_H 600
 
+#define RECORDING_BUFFER_SECONDS 3
+#define SAMPLE_RATE 44100
+#define SAMPLE_SIZE sizeof(int16_t)
+#define CHANNELS 2
+#define BUFFER_SIZE (SAMPLE_RATE * CHANNELS * RECORDING_BUFFER_SECONDS)
+
+struct RecordingBuffer {
+  /*  // Buffer to store recorded audio*/
+  /*int16_t recordingBuffer[BUFFER_SIZE];*/
+  /*size_t recordingPos = 0;*/
+  /*SDL_AudioDeviceID recordingDevice;*/
+  // Buffer to store recorded audio
+  int16_t *recordingBuffer;
+  size_t recordingSize;
+  size_t recordingPos;
+  SDL_AudioDeviceID recordingDevice;
+};
+
 struct Context {
   SDL_GPUDevice *device;
   SDL_Window *window;
 };
 
+bool initAudio(struct Context *context) {
+  if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Initialize SDL Audio: %s\n",
+                 SDL_GetError());
+    return false;
+  }
+  /*int recordingDeviceCount = SDL_GetNumAudioDevices();*/
+
+  /*SDL_AudioSpec want, have;*/
+  /*SDL_zero(want);*/
+  /*want.freq = SAMPLE_RATE;*/
+  /*want.format = AUDIO_S16;*/
+  /*want.channels = CHANNELS;*/
+  /*want.samples = 4096; // Buffer size in samples*/
+  /*want.callback = audioCallback;*/
+
+  int deviceCount;
+  SDL_AudioDeviceID *devices = SDL_GetAudioRecordingDevices(&deviceCount);
+  for (size_t i = 0; i < deviceCount; i++) {
+    /*SDL_AudioSpec spec = SDL_Spec*/
+    /*SDL_OpenAudioDevice(i, const SDL_AudioSpec *spec)*/
+  }
+
+  return true;
+}
+
 bool initWindow(struct Context *context) {
-  if (!SDL_Init(SDL_INIT_VIDEO)) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Initialize SDL: %s\n",
+  if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Initialize SDL Window: %s\n",
                  SDL_GetError());
     return false;
   }
@@ -270,7 +316,98 @@ SDL_GPUGraphicsPipeline *createPipeline(struct Context *context,
   return pipeline;
 }
 
-int main(void) {
+// What I want to do:
+// Ambient sound
+// Capture sound from stream of sound data
+// Analyze some kind of transform on the sound stream
+// Transform the last (10?) minutes of sound into a soundtrack
+
+struct BufferSpec {};
+
+struct AmbientSoundBuffer {
+  SDL_AudioSpec fromSpec;
+  SDL_AudioSpec toSpec;
+  SDL_AudioStream *stream;
+  struct BufferSpec bspec;
+  uint8_t *buffer;
+  size_t buffer_size;
+};
+struct AmbientSoundBuffer initAmbientSoundBuffer() {
+  int count;
+  SDL_AudioDeviceID *devices = SDL_GetAudioRecordingDevices(&count);
+  for (int i = 0; i < count; i++) {
+    SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "Found audio device: %d\n",
+                 devices[i]);
+  }
+
+  /*SDL_AudioStream *SDL_CreateAudioStream(const SDL_AudioSpec *src_spec,*/
+  /*                                       const SDL_AudioSpec *dst_spec);*/
+
+  SDL_AudioSpec fromSpec = {};
+  SDL_AudioSpec toSpec = {};
+  SDL_AudioStream *stream = SDL_CreateAudioStream(&fromSpec, &toSpec);
+  SDL_GetAudioStreamFormat(stream, &fromSpec, &toSpec);
+  SDL_LogDebug(SDL_LOG_CATEGORY_SYSTEM, "Audio stream format: %s -> %s\n",
+               SDL_GetAudioFormatName(fromSpec.format),
+               SDL_GetAudioFormatName(toSpec.format));
+
+  struct AmbientSoundBuffer asb = {
+      .fromSpec = fromSpec,
+      .toSpec = toSpec,
+      .stream = stream,
+      .buffer = NULL,
+      .buffer_size = 0,
+  };
+  return asb;
+}
+void deinit(struct AmbientSoundBuffer self);
+void *capture() {
+  /*bool SDL_PutAudioStreamData(SDL_AudioStream *stream, const void *buf, int
+     len);*/
+  return NULL;
+};
+void *transform();
+void *sample();
+
+int command_ambient_audio_demo(void) {
+  SDL_SetLogPriorities(SDL_LOG_PRIORITY_DEBUG);
+
+  struct Context context;
+  if (!initWindow(&context)) {
+    return 1;
+  }
+  if (!initAudio(&context)) {
+    return 1;
+  }
+
+  // Buffer to store recorded audio
+  struct RecordingBuffer buffer = {
+      .recordingBuffer = malloc(BUFFER_SIZE),
+      .recordingSize = BUFFER_SIZE,
+      .recordingPos = 0,
+      .recordingDevice = 0,
+  };
+
+  /*struct AmbientSoundBuffer buffer = initAmbientSoundBuffer();*/
+
+  bool quit = false;
+  while (!quit) {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+      switch (event.type) {
+      case SDL_EVENT_QUIT:
+        quit = true;
+        break;
+      }
+    }
+  }
+
+  deinitWindow(context);
+
+  return 0;
+}
+
+int command_texture_quad_demo(void) {
   SDL_SetLogPriorities(SDL_LOG_PRIORITY_DEBUG);
 
   struct Context context;
@@ -570,4 +707,25 @@ int main(void) {
   deinitWindow(context);
 
   return 0;
+}
+
+int main(int argc, const char **argv) {
+  printf("running\n");
+
+  // Default command
+  if (argc == 1) {
+    printf("default\n");
+    return command_texture_quad_demo();
+  }
+
+  // Run audio demo
+  if (strcmp("-da", argv[1]) == 0) {
+    printf("flag\n");
+    return command_ambient_audio_demo();
+  }
+
+  /*struct FlagParser {*/
+  /*  int found;*/
+  /*};*/
+  /*struct FlagParser parser = {.found = 0};*/
 }
