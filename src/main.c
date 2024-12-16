@@ -11,6 +11,7 @@
 
 #include "cglm/mat4.h"
 #include "cglm/types.h"
+
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -184,8 +185,27 @@ struct TextureVertex {
   vec2 uv;
 };
 
-struct Texture {};
-struct Sprite {};
+struct Texture {
+  SDL_GPUTextureCreateInfo info;
+  SDL_GPUTexture *texture;
+};
+struct Transform {
+  vec2 position;
+  vec2 rotation;
+  vec2 scale;
+};
+struct Transform transformDefault() {
+  struct Transform t = {
+      .position = {0.0, 0.0},
+      .rotation = {0.0, 0.0},
+      .scale = {1.0, 1.0},
+  };
+  return t;
+}
+struct Sprite {
+  struct Texture *texture;
+  struct Transform transform;
+};
 
 struct Quad {
   vec2 p1;
@@ -417,6 +437,33 @@ int command_texture_quad_demo(void) {
 
   SDL_ReleaseGPUShader(context.device, vertex);
   SDL_ReleaseGPUShader(context.device, fragment);
+
+  struct Texture spriteTexture = {};
+  struct Sprite sprites[] = {
+      {
+          .transform = transformDefault(),
+      },
+      {
+          .transform = transformDefault(),
+      },
+      {
+          .transform = transformDefault(),
+      },
+      {
+          .transform = transformDefault(),
+      },
+  };
+  sprites[0].transform.position[0] = 1.0;
+  sprites[0].transform.position[1] = 0.0;
+
+  sprites[1].transform.position[0] = 0.0;
+  sprites[1].transform.position[1] = 1.0;
+
+  sprites[2].transform.position[0] = -1.0;
+  sprites[2].transform.position[1] = 0.0;
+
+  sprites[3].transform.position[0] = 0.0;
+  sprites[3].transform.position[1] = -1.0;
 
   /*struct ColorVertex triangleVertices[3] = {*/
   /*    {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}}, // Bottom left (red)*/
