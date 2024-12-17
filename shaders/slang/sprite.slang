@@ -1,6 +1,6 @@
 struct Vertex
 {
-    float3 position;
+    float2 position;
     float2 uv;
 }
 
@@ -9,28 +9,28 @@ struct Camera
     float4x4 mvp;
 }
 
-ParameterBlock<Texture2D> atlas;
 ConstantBuffer<Camera> camera;
+Texture2D<float4> atlas;
 SamplerState samplerState;
 
-struct VOut
+struct VertexOut
 {
     float4 position : SV_Position;
     float2 uv;
 }
 
 [shader("vertex")]
-VOut vertexMain(Vertex input)
+VertexOut vertexMain(Vertex in)
 {
-    VOut output;
-    output.position = mul(camera.mvp, float4(input.position, 1.0));
-    output.uv = input.uv;
-    return output;
+    VertexOut out;
+    out.position = mul(camera.mvp, float4(in.position, 0.0, 1.0));
+    out.uv = in.uv;
+    return out;
 }
 
 [shader("fragment")]
-float4 fragmentMain(VOut input) : SV_Target
+float4 fragmentMain(VertexOut in) : SV_Target
 {
-    let color = atlas.Sample(samplerState, input.uv);
+    let color = atlas.Sample(samplerState, in.uv);
     return color;
 }
