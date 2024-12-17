@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+bool initApp(const char *name, const char *version, const char *identifier) {
+  return SDL_SetAppMetadata(name, version, identifier);
+}
+
 bool initWindow(struct Context *context, const char *title, uint16_t w,
                 uint16_t h, SDL_WindowFlags flags) {
   if (!SDL_InitSubSystem(SDL_INIT_VIDEO)) {
@@ -68,19 +72,25 @@ void deinitRender(struct Context *context) {
   SDL_DestroyGPUDevice(context->renderer->device);
 }
 
-bool executeLoop(void tick(uint64_t), void draw()) {
-  bool quit = false;
-  while (!quit) {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-      switch (event.type) {
-      case SDL_EVENT_QUIT:
-        quit = true;
-        break;
-      }
-    }
-    tick(1);
-    draw();
+bool initGame(Context *context, void *state,
+              void (*tick)(void *gameState, uint64_t deltaTime),
+              void (*draw)(void *gameState)) {
+  if (state != NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "game state is NULL\n");
+    return false;
   }
+  if (tick != NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "game tick is NULL\n");
+    return false;
+  }
+  if (draw != NULL) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "game draw is NULL\n");
+    return false;
+  }
+
+  context->Game->state = state;
+  context->Game->tick = tick;
+  context->Game->draw = draw;
+
   return true;
 }

@@ -1,4 +1,3 @@
-#include "SDL3/SDL_audio.h"
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_video.h"
 #include <stdint.h>
@@ -8,8 +7,7 @@
 typedef struct Context {
   struct Window *window;
   struct Render *renderer;
-  SDL_AudioStream *playback;
-  void *game;
+  struct Game *Game;
 } Context;
 
 struct Window {
@@ -24,6 +22,14 @@ struct Render {
   SDL_GPUDevice *device;
 };
 
+struct Game {
+  void *state;
+  void (*tick)(void *gameState, uint64_t deltaTime);
+  void (*draw)(void *gameState);
+};
+
+bool initApp(const char *name, const char *version, const char *identifier);
+
 bool initWindow(Context *context, const char *title, uint16_t w, uint16_t h,
                 SDL_WindowFlags flags);
 void deinitWindow(Context *context);
@@ -34,4 +40,6 @@ void deinitRender(Context *context);
 bool initTextures();
 bool initSounds();
 
-bool executeLoop(void tick(uint64_t), void draw());
+bool initGame(Context *context, void *state,
+              void (*tick)(void *gameState, uint64_t deltaTime),
+              void (*draw)(void *gameState));
