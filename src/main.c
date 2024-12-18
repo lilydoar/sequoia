@@ -16,12 +16,17 @@
 
 #include "cglm/types.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
 #define MAX_QUADS 1024
 #define MAX_VERTICES (MAX_QUADS * 4)
 #define MAX_INDICES (MAX_QUADS * 6)
+
+#define CLEAR_COLOR (SDL_FColor){0.3f, 0.4f, 0.5f, 1.0f}
+#define NUM_COLOR_TARGETS 1
+#define INDEX_SIZE SDL_GPU_INDEXELEMENTSIZE_16BIT
 
 struct App {
   const char *name;
@@ -37,13 +42,26 @@ struct Window {
   SDL_Window *window;
 };
 
+struct Atlas {
+  const char *path;
+  // FIXME: Should be uint16_t
+  int w;
+  int h;
+  // FIXME: Should be uint8_t
+  int channels;
+  unsigned char *pixels;
+  SDL_Surface *surface;
+  SDL_GPUTexture *texture;
+  SDL_GPUSampler *sampler;
+};
+size_t AtlasSize(struct Atlas self) { return self.w * self.h * self.channels; }
+
 struct Render {
   SDL_GPUShaderFormat supported;
   SDL_GPUShaderFormat shader;
   SDL_GPUDevice *device;
   SDL_GPUGraphicsPipeline *pipeline;
-  SDL_GPUTexture *atlas;
-  SDL_GPUSampler *sampler;
+  struct Atlas atlas;
   SDL_GPUBuffer *vertex;
   SDL_GPUBuffer *index;
 };
@@ -60,6 +78,8 @@ struct Vertex {
 };
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
+  SDL_SetLogPriorities(SDL_LOG_PRIORITY_INFO);
+
   struct Context *context = SDL_malloc(sizeof(struct Context));
 
   // App
@@ -94,6 +114,21 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   }
   context->window = window;
 
+  // Static Data
+
+  // Index data for quads can be precomputed
+  uint16_t indices[MAX_INDICES];
+  for (size_t i = 0; i < MAX_INDICES; i += 6) {
+    // Vertex offset pattern to draw a quad
+    // { 0, 1, 2, 0, 2, 3 }
+    indices[i + 0] = i / 6 * 4 + 0;
+    indices[i + 1] = i / 6 * 4 + 1;
+    indices[i + 2] = i / 6 * 4 + 2;
+    indices[i + 3] = i / 6 * 4 + 0;
+    indices[i + 4] = i / 6 * 4 + 2;
+    indices[i + 5] = i / 6 * 4 + 3;
+  }
+
   // Render
   struct Render render = {
       .supported = SDL_GPU_SHADERFORMAT_MSL,
@@ -111,6 +146,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
+  // Render - Shader
   SDL_GPUShaderFormat deviceFormats = SDL_GetGPUShaderFormats(render.device);
 
   const char *shaderPath;
@@ -165,6 +201,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   SDL_free(contents);
 
+  // Render - Pipeline
   SDL_GPUGraphicsPipelineCreateInfo pipelineInfo = {
       .vertex_shader = vertex,
       .fragment_shader = fragment,
@@ -226,42 +263,46 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   SDL_ReleaseGPUShader(render.device, vertex);
   SDL_ReleaseGPUShader(render.device, fragment);
 
-  const char *atlasPath =
-      "assets/sprites/Factions/Knights/Buildings/Castle/Castle_Blue.png";
-  int w, h, channels;
-  void *pixels = stbi_load(atlasPath, &w, &h, &channels, 0);
-  if (!pixels) {
+  // Render - Texture - Atlas
+  struct Atlas atlas = {
+      .path =
+          "assets/sprites/Factions/Knights/Buildings/Castle/Castle_Blue.png",
+  };
+
+  atlas.pixels = stbi_load(atlas.path, &atlas.w, &atlas.h, &atlas.channels, 0);
+  if (!atlas.pixels) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Load image: %s\n",
                  stbi_failure_reason());
     return SDL_APP_FAILURE;
   }
 
-  SDL_Surface *surface = SDL_CreateSurfaceFrom(w, h, SDL_PIXELFORMAT_RGBA8888,
-                                               pixels, w * channels);
-  if (!surface) {
+  atlas.surface =
+      SDL_CreateSurfaceFrom(atlas.w, atlas.h, SDL_PIXELFORMAT_RGBA8888,
+                            atlas.pixels, atlas.w * atlas.channels);
+  if (!atlas.surface) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create surface: %s\n",
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
 
-  render.atlas = SDL_CreateGPUTexture(
+  atlas.texture = SDL_CreateGPUTexture(
       render.device, &(SDL_GPUTextureCreateInfo){
                          .type = SDL_GPU_TEXTURETYPE_2D,
                          .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
                          .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-                         .width = surface->w,
-                         .height = surface->h,
+                         .width = atlas.w,
+                         .height = atlas.h,
                          .layer_count_or_depth = 1,
                          .num_levels = 1,
                      });
-  if (!render.atlas) {
+  if (!atlas.texture) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create texture: %s\n",
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
-  SDL_SetGPUTextureName(render.device, render.atlas, "atlas");
+  SDL_SetGPUTextureName(render.device, atlas.texture, atlas.path);
 
-  render.sampler = SDL_CreateGPUSampler(
+  atlas.sampler = SDL_CreateGPUSampler(
       render.device,
       &(SDL_GPUSamplerCreateInfo){
           .min_filter = SDL_GPU_FILTER_NEAREST,
@@ -270,12 +311,14 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
           .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
       });
-  if (!render.sampler) {
+  if (!atlas.sampler) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create sampler: %s\n",
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
+  render.atlas = atlas;
 
+  // GPU Buffers
   render.vertex = SDL_CreateGPUBuffer(
       render.device,
       &(SDL_GPUBufferCreateInfo){.usage = SDL_GPU_BUFFERUSAGE_VERTEX,
@@ -296,19 +339,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
-  // Index data for quads can be precomputed
-  uint16_t indices[MAX_INDICES];
-  for (size_t i = 0; i < MAX_INDICES; i += 6) {
-    // Vertex offset pattern to draw a quad
-    // { 0, 1, 2, 0, 2, 3 }
-    indices[i + 0] = i / 6 * 4 + 0;
-    indices[i + 1] = i / 6 * 4 + 1;
-    indices[i + 2] = i / 6 * 4 + 2;
-    indices[i + 3] = i / 6 * 4 + 0;
-    indices[i + 4] = i / 6 * 4 + 2;
-    indices[i + 5] = i / 6 * 4 + 3;
-  }
+  context->render = render;
 
+  // Queue index data --> GPU
+  // NOTE: The transfer buffer is where the GPU queues its data for upload
   SDL_GPUTransferBuffer *indexTransferBuffer = SDL_CreateGPUTransferBuffer(
       render.device, &(SDL_GPUTransferBufferCreateInfo){
                          .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
@@ -319,6 +353,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
+  // NOTE: Acquire a mapped pointer and move data to that pointer.
+  // WARN: Do not forget to unmap the pointer
   void *indexTransfer =
       SDL_MapGPUTransferBuffer(render.device, indexTransferBuffer, false);
   if (!indexTransfer) {
@@ -329,26 +365,29 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   SDL_memcpy(indexTransfer, &indices, sizeof(indices));
   SDL_UnmapGPUTransferBuffer(render.device, indexTransferBuffer);
 
-  SDL_GPUTransferBuffer *textureTransferBuffer = SDL_CreateGPUTransferBuffer(
+  // Queue atlas data --> GPU
+  SDL_GPUTransferBuffer *atlasTransferBuf = SDL_CreateGPUTransferBuffer(
       render.device, &(SDL_GPUTransferBufferCreateInfo){
                          .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-                         .size = surface->w * surface->h * 4});
-  if (!textureTransferBuffer) {
+                         .size = AtlasSize(context->render.atlas)});
+  if (!atlasTransferBuf) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create transfer buffer: %s\n",
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
 
   void *textureTransfer =
-      SDL_MapGPUTransferBuffer(render.device, textureTransferBuffer, false);
+      SDL_MapGPUTransferBuffer(render.device, atlasTransferBuf, false);
   if (!textureTransfer) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Map transfer buffer: %s\n",
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
-  SDL_memcpy(textureTransfer, &surface->pixels, surface->w * surface->h * 4);
-  SDL_UnmapGPUTransferBuffer(render.device, textureTransferBuffer);
+  SDL_memcpy(textureTransfer, context->render.atlas.pixels,
+             AtlasSize(context->render.atlas));
+  SDL_UnmapGPUTransferBuffer(render.device, atlasTransferBuf);
 
+  // Empty GPU transfer queue
   SDL_GPUCommandBuffer *upload = SDL_AcquireGPUCommandBuffer(render.device);
   if (!upload) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire GPU command buffer: %s\n",
@@ -366,38 +405,110 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
       false);
   SDL_UploadToGPUTexture(pass,
                          &(SDL_GPUTextureTransferInfo){
-                             .transfer_buffer = textureTransferBuffer,
-                             .pixels_per_row = surface->w,
-                             .rows_per_layer = surface->h,
+                             .transfer_buffer = atlasTransferBuf,
+                             .pixels_per_row = atlas.w,
+                             .rows_per_layer = atlas.h,
                          },
                          &(SDL_GPUTextureRegion){
-                             .texture = render.atlas,
+                             .texture = atlas.texture,
                              .mip_level = 1,
                              .layer = 1,
-                             .w = surface->w,
-                             .h = surface->h,
+                             .w = atlas.w,
+                             .h = atlas.h,
                              .d = 1,
                          },
                          false);
   SDL_EndGPUCopyPass(pass);
   SDL_SubmitGPUCommandBuffer(upload);
-
   SDL_ReleaseGPUTransferBuffer(render.device, indexTransferBuffer);
 
-  context->render = render;
-
   *appstate = context;
+
+  SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "App init complete");
+
   return SDL_APP_CONTINUE;
 }
 SDL_AppResult SDL_AppIterate(void *appstate) {
   struct Context *context = (struct Context *)appstate;
 
-  // Update
+  // Game
+  // ...
 
-  // Draw
+  // Render - Move dynamic data --> GPU
 
-  // Bind vertex and index buffers
+  // Queue uniform data --> GPU
 
+  // Queue vertex data --> GPU
+
+  // Empty GPU transfer queue
+
+  // Render - App render pass
+  // NOTE: App render pass refers to a different context than an SDL render pass
+  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass begin");
+  SDL_GPUCommandBuffer *render =
+      SDL_AcquireGPUCommandBuffer(context->render.device);
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Acquired GPU command buffer");
+  if (!render) {
+    SDL_LogWarn(SDL_LOG_CATEGORY_ERROR, "Aqcuire command buffer: %s",
+                SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
+
+  // NOTE: Swapchain acquisition is gate to begin a render pass, but our app may
+  // continue successfully without producing a render pass on this iteration.
+  SDL_GPUTexture *swapchain;
+  if (!SDL_AcquireGPUSwapchainTexture(render, context->window.window,
+                                      &swapchain, NULL, NULL)) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire swapchain: %s",
+                 SDL_GetError());
+  }
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Acquired GPU swap chain texture");
+  if (!swapchain) {
+    SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "No swapchain texture acquired");
+    return SDL_APP_CONTINUE;
+  }
+
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass begin");
+  SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(
+      render,
+      (SDL_GPUColorTargetInfo[]){{.texture = swapchain,
+                                  .clear_color = CLEAR_COLOR,
+                                  .load_op = SDL_GPU_LOADOP_CLEAR,
+                                  .store_op = SDL_GPU_STOREOP_STORE}},
+      NUM_COLOR_TARGETS, NULL);
+
+  // Render - Binding
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind pipeline");
+  SDL_BindGPUGraphicsPipeline(pass, context->render.pipeline);
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind vertex buffer");
+  SDL_BindGPUVertexBuffers(pass, 0,
+                           (SDL_GPUBufferBinding[]){{
+                               .buffer = context->render.vertex,
+                           }},
+                           1);
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind index buffer");
+  SDL_BindGPUIndexBuffer(
+      pass, &(SDL_GPUBufferBinding){.buffer = context->render.index},
+      INDEX_SIZE);
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind atlas");
+  assert(context->render.atlas.texture);
+  assert(context->render.atlas.sampler);
+  SDL_BindGPUFragmentSamplers(pass, 0,
+                              (SDL_GPUTextureSamplerBinding[]){{
+                                  .texture = context->render.atlas.texture,
+                                  .sampler = context->render.atlas.sampler,
+                              }},
+                              1);
+  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Binding complete");
+
+  // Draw Primitives indexed
+
+  SDL_EndGPURenderPass(pass);
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass complete");
+  SDL_SubmitGPUCommandBuffer(render);
+  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass complete");
+
+  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "App iterate complete");
   return SDL_APP_CONTINUE;
 }
 SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
@@ -410,6 +521,7 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
     return SDL_APP_SUCCESS;
   }
   return SDL_APP_CONTINUE;
+  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "App event complete");
 }
 void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   struct Context *context = (struct Context *)appstate;
@@ -421,4 +533,6 @@ void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   SDL_DestroyGPUDevice(context->render.device);
   SDL_DestroyWindow(context->window.window);
   SDL_free(context);
+
+  SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "App quit complete");
 }
