@@ -1,5 +1,3 @@
-#include "SDL3/SDL_pixels.h"
-#include "SDL3/SDL_surface.h"
 #define SDL_MAIN_USE_CALLBACKS
 #include "SDL3/SDL_error.h"
 #include "SDL3/SDL_events.h"
@@ -8,12 +6,19 @@
 #include "SDL3/SDL_iostream.h"
 #include "SDL3/SDL_log.h"
 #include "SDL3/SDL_main.h"
+#include "SDL3/SDL_pixels.h"
 #include "SDL3/SDL_stdinc.h"
+#include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_video.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+// clang-format off
+#include "cglm/affine.h"
+#include "cglm/affine-pre.h" // clang-format on
+#include "cglm/cam.h"
+#include "cglm/mat4.h"
 #include "cglm/types.h"
 
 #include <assert.h>
@@ -25,8 +30,13 @@
 #define MAX_INDICES (MAX_QUADS * 6)
 
 #define CLEAR_COLOR (SDL_FColor){0.3f, 0.4f, 0.5f, 1.0f}
-#define NUM_COLOR_TARGETS 1
 #define INDEX_SIZE SDL_GPU_INDEXELEMENTSIZE_16BIT
+
+#define QUAD_VERTEX_COUNT 4
+#define QUAD_INDEX_COUNT 6
+static float QUAD_VERTEX_POSITIONS[] = {-0.5, 0.5,  -0.5, -0.5,
+                                        0.5,  -0.5, 0.5,  0.5};
+static float QUAD_UV[] = {0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0};
 
 struct App {
   const char *name;
@@ -66,16 +76,108 @@ struct Render {
   SDL_GPUBuffer *index;
 };
 
+struct Camera {
+  vec2 position;
+  vec2 size;
+  float scale;
+};
+void camera_model_view_proj(struct Camera camera, mat4 mvp) {
+  float scaled_width = camera.size[0] * camera.scale / 2;
+  float scaled_height = camera.size[1] * camera.scale / 2;
+
+  mat4 projection;
+  glm_ortho(-scaled_width, scaled_width, -scaled_height, scaled_height, 0.0,
+            1000.0, projection);
+
+  mat4 view;
+  glm_mat4_identity(view);
+  glm_translate(view, (vec3){camera.position[0], camera.position[1], -1.0});
+
+  glm_mat4_mul(projection, view, mvp);
+}
+
+struct Fire {
+  vec2 position;
+  vec2 size;
+};
+
+struct Game {
+  struct Camera camera;
+  struct Fire fire;
+};
+
 struct Context {
   struct App app;
   struct Window window;
   struct Render render;
+  struct Game game;
 };
 
 struct Vertex {
   vec2 position;
   vec2 uv;
 };
+
+char *format_mat4(const mat4 m) {
+  // WARNING: This function is not thread safe because of this static buffer
+  static char buffer[256];
+  int offset = 0;
+  for (int row = 0; row < 4; row++) {
+    for (int col = 0; col < 4; col++) {
+      offset += sprintf(buffer + offset, "%.3f ", m[col][row]);
+    }
+    offset += sprintf(buffer + offset, "\n");
+  }
+  return buffer;
+}
+
+const char *format_quad(const struct Vertex *vertices) {
+  // WARNING: This function is not thread safe because of this static buffer
+  static char buffer[512];
+  int offset = 0;
+
+  offset += sprintf(buffer + offset, "Quad:\n");
+  for (int i = 0; i < 4; i++) {
+    offset += sprintf(buffer + offset, "v%d: pos(%.3f, %.3f) uv(%.3f, %.3f)\n",
+                      i, vertices[i].position[0], vertices[i].position[1],
+                      vertices[i].uv[0], vertices[i].uv[1]);
+  }
+
+  return buffer;
+}
+
+const char *format_transformed_quad(const struct Vertex *vertices, mat4 mvp) {
+  static char buffer[1024];
+  int offset = 0;
+
+  offset += sprintf(buffer + offset, "Original Vertices:\n");
+  offset += sprintf(buffer + offset, "%s\n", format_quad(vertices));
+
+  offset += sprintf(buffer + offset, "MVP Matrix:\n%s\n", format_mat4(mvp));
+
+  offset += sprintf(buffer + offset, "Transformed Positions:\n");
+  for (int i = 0; i < 4; i++) {
+    // Create homogeneous coordinate (x,y,z,w)
+    vec4 pos = {vertices[i].position[0], vertices[i].position[1], 0.0f, 1.0f};
+    vec4 transformed;
+
+    // Transform vertex by MVP
+    glm_mat4_mulv(mvp, pos, transformed);
+
+    // Perform perspective divide if w != 1
+    if (transformed[3] != 1.0f && transformed[3] != 0.0f) {
+      transformed[0] /= transformed[3];
+      transformed[1] /= transformed[3];
+      transformed[2] /= transformed[3];
+    }
+
+    offset +=
+        sprintf(buffer + offset, "v%d: (%.3f, %.3f, %.3f, %.3f)\n", i,
+                transformed[0], transformed[1], transformed[2], transformed[3]);
+  }
+
+  return buffer;
+}
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   SDL_SetLogPriorities(SDL_LOG_PRIORITY_INFO);
@@ -118,15 +220,13 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   // Index data for quads can be precomputed
   uint16_t indices[MAX_INDICES];
-  for (size_t i = 0; i < MAX_INDICES; i += 6) {
-    // Vertex offset pattern to draw a quad
-    // { 0, 1, 2, 0, 2, 3 }
-    indices[i + 0] = i / 6 * 4 + 0;
-    indices[i + 1] = i / 6 * 4 + 1;
-    indices[i + 2] = i / 6 * 4 + 2;
-    indices[i + 3] = i / 6 * 4 + 0;
-    indices[i + 4] = i / 6 * 4 + 2;
-    indices[i + 5] = i / 6 * 4 + 3;
+  for (size_t index = 0; index < MAX_INDICES; index += QUAD_INDEX_COUNT) {
+    indices[index + 0] = index / 6 * 4 + 0;
+    indices[index + 1] = index / 6 * 4 + 1;
+    indices[index + 2] = index / 6 * 4 + 2;
+    indices[index + 3] = index / 6 * 4 + 0;
+    indices[index + 4] = index / 6 * 4 + 2;
+    indices[index + 5] = index / 6 * 4 + 3;
   }
 
   // Render
@@ -153,6 +253,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   if (deviceFormats & SDL_GPU_SHADERFORMAT_MSL) {
     render.shader = SDL_GPU_SHADERFORMAT_MSL;
     shaderPath = "shaders/metal/sprite.metal";
+    /*shaderPath = "shaders/metal/sprite_debug.metal";*/
   } else {
     return SDL_APP_FAILURE;
   }
@@ -171,8 +272,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
       .entrypoint = "vertexMain",
       .format = render.shader,
       .stage = SDL_GPU_SHADERSTAGE_VERTEX,
-      .num_samplers = 1,
-      .num_storage_textures = 1,
       .num_uniform_buffers = 1,
   };
   SDL_GPUShader *vertex = SDL_CreateGPUShader(render.device, &vertexInfo);
@@ -189,8 +288,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
       .format = render.shader,
       .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
       .num_samplers = 1,
-      .num_storage_textures = 1,
-      .num_uniform_buffers = 1,
   };
   SDL_GPUShader *fragment = SDL_CreateGPUShader(render.device, &fragmentInfo);
   if (!fragment) {
@@ -198,6 +295,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
+  SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Shader load complete: %s\n", shaderPath);
 
   SDL_free(contents);
 
@@ -265,8 +363,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   // Render - Texture - Atlas
   struct Atlas atlas = {
-      .path =
-          "assets/sprites/Factions/Knights/Buildings/Castle/Castle_Blue.png",
+      .path = "assets/sprites/Effects/Fire/fire.png",
   };
 
   atlas.pixels = stbi_load(atlas.path, &atlas.w, &atlas.h, &atlas.channels, 0);
@@ -276,9 +373,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
-  atlas.surface =
-      SDL_CreateSurfaceFrom(atlas.w, atlas.h, SDL_PIXELFORMAT_RGBA8888,
-                            atlas.pixels, atlas.w * atlas.channels);
+  atlas.surface = SDL_CreateSurfaceFrom(
+      atlas.w, atlas.h, SDL_PIXELFORMAT_RGBA8888, atlas.pixels, atlas.w * 4);
   if (!atlas.surface) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create surface: %s\n",
                  SDL_GetError());
@@ -328,6 +424,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
+  SDL_SetGPUBufferName(render.device, render.vertex, "Vertex");
 
   render.index = SDL_CreateGPUBuffer(
       render.device,
@@ -338,6 +435,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
+  SDL_SetGPUBufferName(render.device, render.index, "Index");
 
   context->render = render;
 
@@ -403,24 +501,42 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           .size = sizeof(indices),
       },
       false);
-  SDL_UploadToGPUTexture(pass,
-                         &(SDL_GPUTextureTransferInfo){
-                             .transfer_buffer = atlasTransferBuf,
-                             .pixels_per_row = atlas.w,
-                             .rows_per_layer = atlas.h,
-                         },
-                         &(SDL_GPUTextureRegion){
-                             .texture = atlas.texture,
-                             .mip_level = 1,
-                             .layer = 1,
-                             .w = atlas.w,
-                             .h = atlas.h,
-                             .d = 1,
-                         },
-                         false);
+  SDL_UploadToGPUTexture(
+      pass,
+      &(SDL_GPUTextureTransferInfo){.transfer_buffer = atlasTransferBuf,
+                                    .pixels_per_row = atlas.w,
+                                    .rows_per_layer = atlas.h},
+      &(SDL_GPUTextureRegion){.texture = atlas.texture,
+                              .mip_level = 1,
+                              .layer = 1,
+                              .w = atlas.w,
+                              .h = atlas.h,
+                              .d = 1},
+      false);
   SDL_EndGPUCopyPass(pass);
   SDL_SubmitGPUCommandBuffer(upload);
+  SDL_ReleaseGPUTransferBuffer(render.device, atlasTransferBuf);
   SDL_ReleaseGPUTransferBuffer(render.device, indexTransferBuffer);
+
+  // TODO void loadDefaultGame();
+  struct Game game = {
+      .camera =
+          {
+              .position = {0.0, 0.0},
+              .size = {(float)context->window.width /
+                           (float)context->window.height,
+                       1.0},
+              .scale = 1.0,
+          },
+      .fire =
+          {
+              .position = {0.0, 0.0},
+              .size = {(float)context->render.atlas.w /
+                           (float)context->render.atlas.h,
+                       1.0},
+          },
+  };
+  context->game = game;
 
   *appstate = context;
 
@@ -431,19 +547,100 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 SDL_AppResult SDL_AppIterate(void *appstate) {
   struct Context *context = (struct Context *)appstate;
 
+  struct Vertex *vertices = SDL_malloc(MAX_VERTICES * sizeof(struct Vertex));
+  size_t vertexCount = 0;
+
   // Game
-  // ...
+  struct Fire fire = context->game.fire;
+
+  context->game.camera.scale += 0.001;
+
+  mat4 mvp;
+  camera_model_view_proj(context->game.camera, mvp);
+
+  // Fire vertices
+  vertices[vertexCount] = (struct Vertex){
+      .position = {QUAD_VERTEX_POSITIONS[0] * fire.size[0] + fire.position[0],
+                   QUAD_VERTEX_POSITIONS[1] * fire.size[1] + fire.position[1]},
+      .uv = {QUAD_UV[0], QUAD_UV[1]},
+  };
+  vertexCount += 1;
+
+  vertices[vertexCount] = (struct Vertex){
+      .position = {QUAD_VERTEX_POSITIONS[2] * fire.size[0] + fire.position[0],
+                   QUAD_VERTEX_POSITIONS[3] * fire.size[1] + fire.position[1]},
+      .uv = {QUAD_UV[2], QUAD_UV[3]},
+  };
+  vertexCount += 1;
+
+  vertices[vertexCount] = (struct Vertex){
+      .position = {QUAD_VERTEX_POSITIONS[4] * fire.size[0] + fire.position[0],
+                   QUAD_VERTEX_POSITIONS[5] * fire.size[1] + fire.position[1]},
+      .uv = {QUAD_UV[4], QUAD_UV[5]},
+  };
+  vertexCount += 1;
+
+  vertices[vertexCount] = (struct Vertex){
+      .position = {QUAD_VERTEX_POSITIONS[6] * fire.size[0] + fire.position[0],
+                   QUAD_VERTEX_POSITIONS[7] * fire.size[1] + fire.position[1]},
+      .uv = {QUAD_UV[6], QUAD_UV[7]},
+  };
+  vertexCount += 1;
+  assert(vertexCount % 4 == 0);
+  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "Dynamic vertex count: %zu",
+               vertexCount);
+  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "%s\n",
+               format_transformed_quad(&vertices[0], mvp));
 
   // Render - Move dynamic data --> GPU
 
-  // Queue uniform data --> GPU
-
   // Queue vertex data --> GPU
+  SDL_GPUTransferBuffer *vertexTransferBuffer = SDL_CreateGPUTransferBuffer(
+      context->render.device, &(SDL_GPUTransferBufferCreateInfo){
+                                  .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+                                  .size = sizeof(struct Vertex) * vertexCount});
+  if (!vertexTransferBuffer) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create transfer buffer: %s\n",
+                 SDL_GetError());
+    return SDL_APP_CONTINUE;
+  }
+
+  void *vertexTransfer = SDL_MapGPUTransferBuffer(context->render.device,
+                                                  vertexTransferBuffer, false);
+  if (!vertexTransfer) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Map transfer buffer: %s\n",
+                 SDL_GetError());
+    return SDL_APP_CONTINUE;
+  }
+  SDL_memcpy(vertexTransfer, vertices, sizeof(struct Vertex) * vertexCount);
+  SDL_UnmapGPUTransferBuffer(context->render.device, vertexTransferBuffer);
 
   // Empty GPU transfer queue
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Transfer dynamic GPU data");
+  SDL_GPUCommandBuffer *upload =
+      SDL_AcquireGPUCommandBuffer(context->render.device);
+  if (!upload) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire GPU command buffer: %s\n",
+                 SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
+  SDL_PushGPUVertexUniformData(upload, 0, mvp, sizeof(mvp));
+
+  SDL_GPUCopyPass *uploadPass = SDL_BeginGPUCopyPass(upload);
+  SDL_UploadToGPUBuffer(
+      uploadPass,
+      &(SDL_GPUTransferBufferLocation){.transfer_buffer = vertexTransferBuffer},
+      &(SDL_GPUBufferRegion){
+          .buffer = context->render.vertex,
+          .size = sizeof(struct Vertex) * vertexCount,
+      },
+      false);
+  SDL_EndGPUCopyPass(uploadPass);
+  SDL_SubmitGPUCommandBuffer(upload);
+  SDL_ReleaseGPUTransferBuffer(context->render.device, vertexTransferBuffer);
 
   // Render - App render pass
-  // NOTE: App render pass refers to a different context than an SDL render pass
+  // NOTE: App render pass refers to a different context than an SDL render
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass begin");
   SDL_GPUCommandBuffer *render =
       SDL_AcquireGPUCommandBuffer(context->render.device);
@@ -454,8 +651,9 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     return SDL_APP_FAILURE;
   }
 
-  // NOTE: Swapchain acquisition is gate to begin a render pass, but our app may
-  // continue successfully without producing a render pass on this iteration.
+  // NOTE: Swapchain acquisition is a gate to begin a render pass, but our app
+  // may continue successfully without producing a render pass on this
+  // iteration.
   SDL_GPUTexture *swapchain;
   if (!SDL_AcquireGPUSwapchainTexture(render, context->window.window,
                                       &swapchain, NULL, NULL)) {
@@ -469,13 +667,15 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   }
 
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass begin");
-  SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(
-      render,
-      (SDL_GPUColorTargetInfo[]){{.texture = swapchain,
-                                  .clear_color = CLEAR_COLOR,
-                                  .load_op = SDL_GPU_LOADOP_CLEAR,
-                                  .store_op = SDL_GPU_STOREOP_STORE}},
-      NUM_COLOR_TARGETS, NULL);
+  SDL_GPURenderPass *pass =
+      SDL_BeginGPURenderPass(render,
+                             (SDL_GPUColorTargetInfo[]){{
+                                 .texture = swapchain,
+                                 .clear_color = CLEAR_COLOR,
+                                 .load_op = SDL_GPU_LOADOP_CLEAR,
+                                 .store_op = SDL_GPU_STOREOP_STORE,
+                             }},
+                             1, NULL);
 
   // Render - Binding
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind pipeline");
@@ -499,14 +699,19 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
                                   .sampler = context->render.atlas.sampler,
                               }},
                               1);
-  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Binding complete");
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Binding complete");
 
-  // Draw Primitives indexed
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Draw quads: %zu instances",
+               vertexCount / 4);
+  SDL_DrawGPUIndexedPrimitives(pass, QUAD_INDEX_COUNT, vertexCount / 4, 0, 0,
+                               0);
 
   SDL_EndGPURenderPass(pass);
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass complete");
   SDL_SubmitGPUCommandBuffer(render);
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass complete");
+
+  SDL_free(vertices);
 
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "App iterate complete");
   return SDL_APP_CONTINUE;

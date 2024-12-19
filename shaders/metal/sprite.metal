@@ -19,7 +19,7 @@ matrix<float,int(4),int(4)>  unpackStorage_0(_MatrixStorage_float4x4_ColMajornat
 }
 
 
-#line 16 "shaders/slang/sprite.slang"
+#line 15 "shaders/slang/sprite.slang"
 struct VertexOut_0
 {
     float4 position_0 [[position]];
@@ -27,7 +27,7 @@ struct VertexOut_0
 };
 
 
-#line 16
+#line 15
 struct vertexInput_0
 {
     float2 position_1 [[attribute(0)]];
@@ -35,40 +35,40 @@ struct vertexInput_0
 };
 
 
-#line 16
-struct Camera_natural_0
+#line 15
+struct SLANG_ParameterGroup_Uniform_natural_0
 {
     _MatrixStorage_float4x4_ColMajornatural_0 mvp_0;
 };
 
 
-#line 34
+#line 33
 struct KernelContext_0
 {
-    Camera_natural_0 constant* camera_0;
+    SLANG_ParameterGroup_Uniform_natural_0 constant* Uniform_0;
     texture2d<float, access::sample> atlas_0;
     sampler samplerState_0;
 };
 
 
-#line 23
-[[vertex]] VertexOut_0 vertexMain(vertexInput_0 _S2 [[stage_in]], Camera_natural_0 constant* camera_1 [[buffer(0)]], texture2d<float, access::sample> atlas_1 [[texture(0)]], sampler samplerState_1 [[sampler(0)]])
+#line 22
+[[vertex]] VertexOut_0 vertexMain(vertexInput_0 _S2 [[stage_in]], SLANG_ParameterGroup_Uniform_natural_0 constant* Uniform_1 [[buffer(0)]], texture2d<float, access::sample> atlas_1 [[texture(0)]], sampler samplerState_1 [[sampler(0)]])
 {
 
-#line 23
+#line 22
     KernelContext_0 kernelContext_0;
 
-#line 23
-    (&kernelContext_0)->camera_0 = camera_1;
+#line 22
+    (&kernelContext_0)->Uniform_0 = Uniform_1;
 
-#line 23
+#line 22
     (&kernelContext_0)->atlas_0 = atlas_1;
 
-#line 23
+#line 22
     (&kernelContext_0)->samplerState_0 = samplerState_1;
 
     thread VertexOut_0 out_0;
-    (&out_0)->position_0 = (((float4(_S2.position_1, 0.0, 1.0)) * (unpackStorage_0((&kernelContext_0)->camera_0->mvp_0))));
+    (&out_0)->position_0 = (((float4(_S2.position_1, 0.0, 1.0)) * (unpackStorage_0((&kernelContext_0)->Uniform_0->mvp_0))));
     (&out_0)->uv_0 = _S2.uv_1;
     return out_0;
 }
@@ -88,23 +88,23 @@ struct pixelInput_0
 };
 
 
-#line 32 "shaders/slang/sprite.slang"
-[[fragment]] pixelOutput_0 fragmentMain(pixelInput_0 _S3 [[stage_in]], float4 position_2 [[position]], Camera_natural_0 constant* camera_2 [[buffer(0)]], texture2d<float, access::sample> atlas_2 [[texture(0)]], sampler samplerState_2 [[sampler(0)]])
+#line 31 "shaders/slang/sprite.slang"
+[[fragment]] pixelOutput_0 fragmentMain(pixelInput_0 _S3 [[stage_in]], float4 position_2 [[position]], SLANG_ParameterGroup_Uniform_natural_0 constant* Uniform_2 [[buffer(0)]], texture2d<float, access::sample> atlas_2 [[texture(0)]], sampler samplerState_2 [[sampler(0)]])
 {
 
-#line 32
+#line 31
     KernelContext_0 kernelContext_1;
 
-#line 32
-    (&kernelContext_1)->camera_0 = camera_2;
+#line 31
+    (&kernelContext_1)->Uniform_0 = Uniform_2;
 
-#line 32
+#line 31
     (&kernelContext_1)->atlas_0 = atlas_2;
 
-#line 32
+#line 31
     (&kernelContext_1)->samplerState_0 = samplerState_2;
 
-#line 32
+#line 31
     pixelOutput_0 _S4 = { (((&kernelContext_1)->atlas_0).sample((samplerState_2), (_S3.uv_2))) };
 
 

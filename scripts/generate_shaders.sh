@@ -2,7 +2,8 @@
 
 set -e
 
-# Make sure the output folder exists
+# Clean the output folders
+rm -r shaders/metal
 mkdir -p shaders/metal
 
 # Compile slang shaders to metal
