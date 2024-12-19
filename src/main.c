@@ -86,12 +86,12 @@ void camera_model_view_proj(struct Camera camera, mat4 mvp) {
   float scaled_height = camera.size[1] * camera.scale / 2;
 
   mat4 projection;
-  glm_ortho(-scaled_width, scaled_width, -scaled_height, scaled_height, 0.0,
+  glm_ortho(scaled_width, -scaled_width, -scaled_height, scaled_height, 0.0,
             1000.0, projection);
 
   mat4 view;
   glm_mat4_identity(view);
-  glm_translate(view, (vec3){camera.position[0], camera.position[1], -1.0});
+  glm_translate(view, (vec3){camera.position[0], -camera.position[1], 0.0});
 
   glm_mat4_mul(projection, view, mvp);
 }
@@ -526,7 +526,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
               .size = {(float)context->window.width /
                            (float)context->window.height,
                        1.0},
-              .scale = 1.0,
+              .scale = 5.0,
           },
       .fire =
           {
@@ -553,7 +553,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   // Game
   struct Fire fire = context->game.fire;
 
-  context->game.camera.scale += 0.001;
+  context->game.camera.position[0] += 0.001;
+  context->game.camera.position[1] += 0.001;
 
   mat4 mvp;
   camera_model_view_proj(context->game.camera, mvp);
