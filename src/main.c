@@ -1,3 +1,8 @@
+#include <assert.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
 #define SDL_MAIN_USE_CALLBACKS
 #include "SDL3/SDL_error.h"
 #include "SDL3/SDL_events.h"
@@ -11,9 +16,6 @@
 #include "SDL3/SDL_surface.h"
 #include "SDL3/SDL_video.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
 // clang-format off
 #include "cglm/affine.h"
 #include "cglm/affine-pre.h" // clang-format on
@@ -21,13 +23,13 @@
 #include "cglm/mat4.h"
 #include "cglm/types.h"
 
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 #define MAX_QUADS 1024
 #define MAX_VERTICES (MAX_QUADS * 4)
 #define MAX_INDICES (MAX_QUADS * 6)
+#define GPU_TRANSFER_QUEUE_MAX 8
 
 #define CLEAR_COLOR (SDL_FColor){0.3f, 0.4f, 0.5f, 1.0f}
 #define INDEX_SIZE SDL_GPU_INDEXELEMENTSIZE_16BIT
@@ -66,11 +68,154 @@ struct Atlas {
 };
 size_t AtlasSize(struct Atlas self) { return self.w * self.h * self.channels; }
 
+enum GPUTransferType { GPU_TRANSFER_BUFFER, GPU_TRANSFER_TEXTURE };
+struct GPUTransferQueueItem {
+  void *data;
+  size_t size;
+  enum GPUTransferType type;
+  union {
+    SDL_GPUBuffer *buffer;
+    struct {
+      uint32_t w;
+      uint32_t h;
+      SDL_GPUTexture *texture;
+    } texture;
+  } dest;
+};
+struct GPUTransferQueue {
+  struct GPUTransferQueueItem items[GPU_TRANSFER_QUEUE_MAX];
+  size_t front;
+  size_t back;
+  size_t size;
+  SDL_GPUCopyPass *copy;
+};
+bool EnqueueTransferToGPUBuffer(struct GPUTransferQueue *queue, void *data,
+                                size_t size, SDL_GPUBuffer *dest) {
+  if (queue->size == GPU_TRANSFER_QUEUE_MAX) {
+    return false;
+  }
+
+  queue->back = (queue->back + 1) % GPU_TRANSFER_QUEUE_MAX;
+  queue->size++;
+  queue->items[queue->back] =
+      (struct GPUTransferQueueItem){.data = data,
+                                    .size = size,
+                                    .type = GPU_TRANSFER_BUFFER,
+                                    .dest.buffer = dest};
+
+  return true;
+}
+bool EnqueueTransferToGPUTexture(struct GPUTransferQueue *queue, void *data,
+                                 size_t size, uint32_t w, uint32_t h,
+                                 SDL_GPUTexture *texture) {
+  if (queue->size == GPU_TRANSFER_QUEUE_MAX) {
+    return false;
+  }
+
+  queue->back = (queue->back + 1) % GPU_TRANSFER_QUEUE_MAX;
+  queue->size++;
+  queue->items[queue->back] = (struct GPUTransferQueueItem){
+      .data = data,
+      .size = size,
+      .type = GPU_TRANSFER_TEXTURE,
+      .dest.texture = {.w = w, .h = h, .texture = texture},
+  };
+
+  return true;
+}
+// WARNING: Do not call this function outside of a GPU copy pass
+bool DequeueGPUTransferItem(struct GPUTransferQueue *queue,
+                            SDL_GPUDevice *device) {
+  if (queue->size == 0) {
+    return false;
+  }
+  assert(queue->copy);
+
+  struct GPUTransferQueueItem item = queue->items[queue->front];
+  queue->front = (queue->front + 1) % GPU_TRANSFER_QUEUE_MAX;
+  queue->size--;
+
+  SDL_GPUTransferBuffer *buffer = SDL_CreateGPUTransferBuffer(
+      device, &(SDL_GPUTransferBufferCreateInfo){
+                  .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+                  .size = item.size,
+              });
+  if (!buffer) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create transfer buffer: %s\n",
+                 SDL_GetError());
+    return false;
+  }
+
+  void *transfer = SDL_MapGPUTransferBuffer(device, buffer, false);
+  if (!transfer) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Map transfer buffer: %s\n",
+                 SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
+  SDL_memcpy(transfer, item.data, item.size);
+  SDL_UnmapGPUTransferBuffer(device, buffer);
+
+  switch (item.type) {
+  case GPU_TRANSFER_BUFFER:
+    SDL_UploadToGPUBuffer(
+        queue->copy,
+        &(SDL_GPUTransferBufferLocation){.transfer_buffer = buffer},
+        &(SDL_GPUBufferRegion){.buffer = item.dest.buffer, .size = item.size},
+        false);
+    break;
+  case GPU_TRANSFER_TEXTURE:
+    SDL_UploadToGPUTexture(queue->copy,
+                           &(SDL_GPUTextureTransferInfo){
+                               .transfer_buffer = buffer,
+                               .pixels_per_row = item.dest.texture.w,
+                               .rows_per_layer = item.dest.texture.h,
+                           },
+                           &(SDL_GPUTextureRegion){
+                               .texture = item.dest.texture.texture,
+                               .w = item.dest.texture.w,
+                               .h = item.dest.texture.h,
+                               .mip_level = 1,
+                               .layer = 1,
+                               .d = 1,
+                           },
+                           false);
+    break;
+  }
+
+  SDL_ReleaseGPUTransferBuffer(device, buffer);
+
+  return true;
+}
+bool EmptyGPUTransferQueue(struct GPUTransferQueue *queue,
+                           SDL_GPUDevice *device) {
+  SDL_GPUCommandBuffer *cmdBuf = SDL_AcquireGPUCommandBuffer(device);
+  if (!cmdBuf) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire GPU command buffer: %s\n",
+                 SDL_GetError());
+    return false;
+  }
+  queue->copy = SDL_BeginGPUCopyPass(cmdBuf);
+
+  while (queue->size > 0) {
+    if (!DequeueGPUTransferItem(queue, device)) {
+      return false;
+    }
+  }
+
+  SDL_EndGPUCopyPass(queue->copy);
+  queue->copy = NULL;
+
+  SDL_SubmitGPUCommandBuffer(cmdBuf);
+
+  return true;
+}
+
 struct Render {
   SDL_GPUShaderFormat supported;
   SDL_GPUShaderFormat shader;
   SDL_GPUDevice *device;
   SDL_GPUGraphicsPipeline *pipeline;
+  struct GPUTransferQueue queue;
   struct Atlas atlas;
   SDL_GPUBuffer *vertex;
   SDL_GPUBuffer *index;
@@ -253,7 +398,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   if (deviceFormats & SDL_GPU_SHADERFORMAT_MSL) {
     render.shader = SDL_GPU_SHADERFORMAT_MSL;
     shaderPath = "shaders/metal/sprite.metal";
-    /*shaderPath = "shaders/metal/sprite_debug.metal";*/
   } else {
     return SDL_APP_FAILURE;
   }
@@ -361,6 +505,9 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   SDL_ReleaseGPUShader(render.device, vertex);
   SDL_ReleaseGPUShader(render.device, fragment);
 
+  // Render - GPU Transfer Queue
+  render.queue = (struct GPUTransferQueue){.front = 0, .back = -1, .size = 0};
+
   // Render - Texture - Atlas
   struct Atlas atlas = {
       .path = "assets/sprites/Effects/Fire/fire.png",
@@ -439,84 +586,21 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   context->render = render;
 
-  // Queue index data --> GPU
-  // NOTE: The transfer buffer is where the GPU queues its data for upload
-  SDL_GPUTransferBuffer *indexTransferBuffer = SDL_CreateGPUTransferBuffer(
-      render.device, &(SDL_GPUTransferBufferCreateInfo){
-                         .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-                         .size = sizeof(indices)});
-  if (!indexTransferBuffer) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create transfer buffer: %s\n",
-                 SDL_GetError());
+  // Move static data --> GPU
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Transfer static GPU data");
+  if (!EnqueueTransferToGPUBuffer(&context->render.queue, indices,
+                                  sizeof(indices), context->render.index)) {
     return SDL_APP_FAILURE;
   }
-
-  // NOTE: Acquire a mapped pointer and move data to that pointer.
-  // WARN: Do not forget to unmap the pointer
-  void *indexTransfer =
-      SDL_MapGPUTransferBuffer(render.device, indexTransferBuffer, false);
-  if (!indexTransfer) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Map transfer buffer: %s\n",
-                 SDL_GetError());
+  if (!EnqueueTransferToGPUTexture(
+          &context->render.queue, context->render.atlas.pixels,
+          AtlasSize(context->render.atlas), context->render.atlas.w,
+          context->render.atlas.h, context->render.atlas.texture)) {
     return SDL_APP_FAILURE;
   }
-  SDL_memcpy(indexTransfer, &indices, sizeof(indices));
-  SDL_UnmapGPUTransferBuffer(render.device, indexTransferBuffer);
-
-  // Queue atlas data --> GPU
-  SDL_GPUTransferBuffer *atlasTransferBuf = SDL_CreateGPUTransferBuffer(
-      render.device, &(SDL_GPUTransferBufferCreateInfo){
-                         .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-                         .size = AtlasSize(context->render.atlas)});
-  if (!atlasTransferBuf) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create transfer buffer: %s\n",
-                 SDL_GetError());
+  if (!EmptyGPUTransferQueue(&context->render.queue, context->render.device)) {
     return SDL_APP_FAILURE;
   }
-
-  void *textureTransfer =
-      SDL_MapGPUTransferBuffer(render.device, atlasTransferBuf, false);
-  if (!textureTransfer) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Map transfer buffer: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
-  SDL_memcpy(textureTransfer, context->render.atlas.pixels,
-             AtlasSize(context->render.atlas));
-  SDL_UnmapGPUTransferBuffer(render.device, atlasTransferBuf);
-
-  // Empty GPU transfer queue
-  SDL_GPUCommandBuffer *upload = SDL_AcquireGPUCommandBuffer(render.device);
-  if (!upload) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire GPU command buffer: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
-  SDL_GPUCopyPass *pass = SDL_BeginGPUCopyPass(upload);
-  SDL_UploadToGPUBuffer(
-      pass,
-      &(SDL_GPUTransferBufferLocation){.transfer_buffer = indexTransferBuffer},
-      &(SDL_GPUBufferRegion){
-          .buffer = render.index,
-          .size = sizeof(indices),
-      },
-      false);
-  SDL_UploadToGPUTexture(
-      pass,
-      &(SDL_GPUTextureTransferInfo){.transfer_buffer = atlasTransferBuf,
-                                    .pixels_per_row = atlas.w,
-                                    .rows_per_layer = atlas.h},
-      &(SDL_GPUTextureRegion){.texture = atlas.texture,
-                              .mip_level = 1,
-                              .layer = 1,
-                              .w = atlas.w,
-                              .h = atlas.h,
-                              .d = 1},
-      false);
-  SDL_EndGPUCopyPass(pass);
-  SDL_SubmitGPUCommandBuffer(upload);
-  SDL_ReleaseGPUTransferBuffer(render.device, atlasTransferBuf);
-  SDL_ReleaseGPUTransferBuffer(render.device, indexTransferBuffer);
 
   // TODO void loadDefaultGame();
   struct Game game = {
@@ -553,8 +637,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   // Game
   struct Fire fire = context->game.fire;
 
-  /*context->game.camera.position[0] += 0.002;*/
-  /*context->game.camera.position[1] += 0.002;*/
+  context->game.camera.position[0] += 0.002;
+  context->game.camera.position[1] += 0.002;
 
   mat4 mvp;
   camera_model_view_proj(context->game.camera, mvp);
@@ -593,51 +677,16 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "%s\n",
                format_transformed_quad(&vertices[0], mvp));
 
-  // Render - Move dynamic data --> GPU
-
-  // Queue vertex data --> GPU
-  SDL_GPUTransferBuffer *vertexTransferBuffer = SDL_CreateGPUTransferBuffer(
-      context->render.device, &(SDL_GPUTransferBufferCreateInfo){
-                                  .usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-                                  .size = sizeof(struct Vertex) * vertexCount});
-  if (!vertexTransferBuffer) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create transfer buffer: %s\n",
-                 SDL_GetError());
-    return SDL_APP_CONTINUE;
-  }
-
-  void *vertexTransfer = SDL_MapGPUTransferBuffer(context->render.device,
-                                                  vertexTransferBuffer, false);
-  if (!vertexTransfer) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Map transfer buffer: %s\n",
-                 SDL_GetError());
-    return SDL_APP_CONTINUE;
-  }
-  SDL_memcpy(vertexTransfer, vertices, sizeof(struct Vertex) * vertexCount);
-  SDL_UnmapGPUTransferBuffer(context->render.device, vertexTransferBuffer);
-
-  // Empty GPU transfer queue
+  // Move dynamic data --> GPU
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Transfer dynamic GPU data");
-  SDL_GPUCommandBuffer *upload =
-      SDL_AcquireGPUCommandBuffer(context->render.device);
-  if (!upload) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire GPU command buffer: %s\n",
-                 SDL_GetError());
+  if (!EnqueueTransferToGPUBuffer(&context->render.queue, vertices,
+                                  sizeof(struct Vertex) * vertexCount,
+                                  context->render.vertex)) {
     return SDL_APP_FAILURE;
   }
-
-  SDL_GPUCopyPass *uploadPass = SDL_BeginGPUCopyPass(upload);
-  SDL_UploadToGPUBuffer(
-      uploadPass,
-      &(SDL_GPUTransferBufferLocation){.transfer_buffer = vertexTransferBuffer},
-      &(SDL_GPUBufferRegion){
-          .buffer = context->render.vertex,
-          .size = sizeof(struct Vertex) * vertexCount,
-      },
-      false);
-  SDL_EndGPUCopyPass(uploadPass);
-  SDL_SubmitGPUCommandBuffer(upload);
-  SDL_ReleaseGPUTransferBuffer(context->render.device, vertexTransferBuffer);
+  if (!EmptyGPUTransferQueue(&context->render.queue, context->render.device)) {
+    return SDL_APP_FAILURE;
+  }
 
   // Render - App render pass
   // NOTE: App render pass refers to a different context than an SDL render
