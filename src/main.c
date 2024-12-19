@@ -553,8 +553,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   // Game
   struct Fire fire = context->game.fire;
 
-  context->game.camera.position[0] += 0.001;
-  context->game.camera.position[1] += 0.001;
+  /*context->game.camera.position[0] += 0.002;*/
+  /*context->game.camera.position[1] += 0.002;*/
 
   mat4 mvp;
   camera_model_view_proj(context->game.camera, mvp);
@@ -625,7 +625,6 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
-  SDL_PushGPUVertexUniformData(upload, 0, mvp, sizeof(mvp));
 
   SDL_GPUCopyPass *uploadPass = SDL_BeginGPUCopyPass(upload);
   SDL_UploadToGPUBuffer(
@@ -666,6 +665,9 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "No swapchain texture acquired");
     return SDL_APP_CONTINUE;
   }
+
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Push GPU uniform vertex data");
+  SDL_PushGPUVertexUniformData(render, 0, mvp, sizeof(mvp));
 
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass begin");
   SDL_GPURenderPass *pass =
