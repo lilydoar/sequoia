@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -38,7 +39,6 @@
 #define QUAD_INDEX_COUNT 6
 static float QUAD_VERTEX_POSITIONS[] = {-0.5, 0.5,  -0.5, -0.5,
                                         0.5,  -0.5, 0.5,  0.5};
-static float QUAD_UV[] = {0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0};
 
 struct App {
   const char *name;
@@ -241,14 +241,21 @@ void camera_model_view_proj(struct Camera camera, mat4 mvp) {
   glm_mat4_mul(projection, view, mvp);
 }
 
+struct Time {
+  uint64_t elapsed;
+};
+
 struct Fire {
   vec2 position;
   vec2 size;
 };
 
 struct Game {
+  struct Time time;
   struct Camera camera;
   struct Fire fire;
+  uint32_t frameLen;
+  uint32_t currentFrame;
 };
 
 struct Context {
@@ -262,6 +269,51 @@ struct Vertex {
   vec2 position;
   vec2 uv;
 };
+
+struct QuadBuffer {
+  struct Vertex vertices[MAX_VERTICES];
+  size_t count;
+};
+size_t QuadBufferSize(struct QuadBuffer *self) {
+  return sizeof(struct Vertex) * QUAD_VERTEX_COUNT * self->count;
+}
+bool QuadBufferAppend(struct QuadBuffer *quadBuf, vec2 quadPos, vec2 quadSize,
+                      vec2 uvPos, vec2 uvSize) {
+  if (quadBuf->count + 1 > MAX_QUADS) {
+    SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                "Append quad: Quad buffer is full\n");
+    return false;
+  }
+
+  struct Vertex v0 = {
+      .position = {QUAD_VERTEX_POSITIONS[0] * quadSize[0] + quadPos[0],
+                   QUAD_VERTEX_POSITIONS[1] * quadSize[1] + quadPos[1]},
+      .uv = {uvPos[0], uvPos[1]},
+  };
+  struct Vertex v1 = {
+      .position = {QUAD_VERTEX_POSITIONS[2] * quadSize[0] + quadPos[0],
+                   QUAD_VERTEX_POSITIONS[3] * quadSize[1] + quadPos[1]},
+      .uv = {uvPos[0], uvPos[1] + uvSize[1]},
+  };
+  struct Vertex v2 = {
+      .position = {QUAD_VERTEX_POSITIONS[4] * quadSize[0] + quadPos[0],
+                   QUAD_VERTEX_POSITIONS[5] * quadSize[1] + quadPos[1]},
+      .uv = {uvPos[0] + uvSize[0], uvPos[1] + uvSize[1]},
+  };
+  struct Vertex v3 = {
+      .position = {QUAD_VERTEX_POSITIONS[6] * quadSize[0] + quadPos[0],
+                   QUAD_VERTEX_POSITIONS[7] * quadSize[1] + quadPos[1]},
+      .uv = {uvPos[0] + uvSize[0], uvPos[1]},
+  };
+
+  quadBuf->vertices[quadBuf->count * QUAD_VERTEX_COUNT + 0] = v0;
+  quadBuf->vertices[quadBuf->count * QUAD_VERTEX_COUNT + 1] = v1;
+  quadBuf->vertices[quadBuf->count * QUAD_VERTEX_COUNT + 2] = v2;
+  quadBuf->vertices[quadBuf->count * QUAD_VERTEX_COUNT + 3] = v3;
+  quadBuf->count += 1;
+
+  return true;
+}
 
 char *format_mat4(const mat4 m) {
   // WARNING: This function is not thread safe because of this static buffer
@@ -366,12 +418,12 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   // Index data for quads can be precomputed
   uint16_t indices[MAX_INDICES];
   for (size_t index = 0; index < MAX_INDICES; index += QUAD_INDEX_COUNT) {
-    indices[index + 0] = index / 6 * 4 + 0;
-    indices[index + 1] = index / 6 * 4 + 1;
-    indices[index + 2] = index / 6 * 4 + 2;
-    indices[index + 3] = index / 6 * 4 + 0;
-    indices[index + 4] = index / 6 * 4 + 2;
-    indices[index + 5] = index / 6 * 4 + 3;
+    indices[index + 0] = index / QUAD_INDEX_COUNT * QUAD_VERTEX_COUNT + 0;
+    indices[index + 1] = index / QUAD_INDEX_COUNT * QUAD_VERTEX_COUNT + 1;
+    indices[index + 2] = index / QUAD_INDEX_COUNT * QUAD_VERTEX_COUNT + 2;
+    indices[index + 3] = index / QUAD_INDEX_COUNT * QUAD_VERTEX_COUNT + 0;
+    indices[index + 4] = index / QUAD_INDEX_COUNT * QUAD_VERTEX_COUNT + 2;
+    indices[index + 5] = index / QUAD_INDEX_COUNT * QUAD_VERTEX_COUNT + 3;
   }
 
   // Render
@@ -602,8 +654,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
-  // TODO void loadDefaultGame();
   struct Game game = {
+      .time = {.elapsed = 0},
       .camera =
           {
               .position = {0.0, 0.0},
@@ -615,77 +667,77 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
       .fire =
           {
               .position = {0.0, 0.0},
-              .size = {(float)context->render.atlas.w /
-                           (float)context->render.atlas.h,
-                       1.0},
+              .size = {1.0, 1.0},
           },
+      .frameLen = 12,
+      .currentFrame = 7,
   };
   context->game = game;
 
   *appstate = context;
 
   SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "App init complete");
-
   return SDL_APP_CONTINUE;
 }
+
 SDL_AppResult SDL_AppIterate(void *appstate) {
   struct Context *context = (struct Context *)appstate;
 
-  struct Vertex *vertices = SDL_malloc(MAX_VERTICES * sizeof(struct Vertex));
-  size_t vertexCount = 0;
+  struct QuadBuffer quadBuf = {0};
 
   // Game
+  context->game.time.elapsed += 1;
+
+  /*context->game.camera.position[0] += 0.002;*/
+  /*context->game.camera.position[1] += 0.002;*/
+  /*context->game.camera.scale += 0.01;*/
+
+  if (context->game.time.elapsed % context->game.frameLen == 1) {
+    context->game.currentFrame += 1;
+  }
+
+  float uvWidth = 1.0 / 7.0;
+  vec2 uvPos = {fmod(uvWidth * context->game.currentFrame, 1.0), 0.0};
+  vec2 uvSize = {uvWidth, 1.0};
+
   struct Fire fire = context->game.fire;
 
-  context->game.camera.position[0] += 0.002;
-  context->game.camera.position[1] += 0.002;
+  // Draw multiple quads
+  int n = 10;
+  for (size_t i = 0; i < n; i++) {
+    if (!QuadBufferAppend(&quadBuf,
+                          (vec2){
+                              cos((float)i / n * 2 * 3.14),
+                              sin((float)i / n * 2 * 3.14),
+                          },
+                          fire.size, uvPos, uvSize)) {
+      return SDL_APP_FAILURE;
+    }
+  }
+
+  if (!QuadBufferAppend(&quadBuf, (vec2){fire.position[0], fire.position[1]},
+                        fire.size, uvPos, uvSize)) {
+    return SDL_APP_FAILURE;
+  }
 
   mat4 mvp;
   camera_model_view_proj(context->game.camera, mvp);
 
-  // Fire vertices
-  vertices[vertexCount] = (struct Vertex){
-      .position = {QUAD_VERTEX_POSITIONS[0] * fire.size[0] + fire.position[0],
-                   QUAD_VERTEX_POSITIONS[1] * fire.size[1] + fire.position[1]},
-      .uv = {QUAD_UV[0], QUAD_UV[1]},
-  };
-  vertexCount += 1;
-
-  vertices[vertexCount] = (struct Vertex){
-      .position = {QUAD_VERTEX_POSITIONS[2] * fire.size[0] + fire.position[0],
-                   QUAD_VERTEX_POSITIONS[3] * fire.size[1] + fire.position[1]},
-      .uv = {QUAD_UV[2], QUAD_UV[3]},
-  };
-  vertexCount += 1;
-
-  vertices[vertexCount] = (struct Vertex){
-      .position = {QUAD_VERTEX_POSITIONS[4] * fire.size[0] + fire.position[0],
-                   QUAD_VERTEX_POSITIONS[5] * fire.size[1] + fire.position[1]},
-      .uv = {QUAD_UV[4], QUAD_UV[5]},
-  };
-  vertexCount += 1;
-
-  vertices[vertexCount] = (struct Vertex){
-      .position = {QUAD_VERTEX_POSITIONS[6] * fire.size[0] + fire.position[0],
-                   QUAD_VERTEX_POSITIONS[7] * fire.size[1] + fire.position[1]},
-      .uv = {QUAD_UV[6], QUAD_UV[7]},
-  };
-  vertexCount += 1;
-  assert(vertexCount % 4 == 0);
-  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "Dynamic vertex count: %zu",
-               vertexCount);
-  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "%s\n",
-               format_transformed_quad(&vertices[0], mvp));
-
   // Move dynamic data --> GPU
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Transfer dynamic GPU data");
-  if (!EnqueueTransferToGPUBuffer(&context->render.queue, vertices,
-                                  sizeof(struct Vertex) * vertexCount,
-                                  context->render.vertex)) {
-    return SDL_APP_FAILURE;
-  }
-  if (!EmptyGPUTransferQueue(&context->render.queue, context->render.device)) {
-    return SDL_APP_FAILURE;
+  if (quadBuf.count > 0) {
+    SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Transfer dynamic GPU data");
+    if (!EnqueueTransferToGPUBuffer(&context->render.queue, quadBuf.vertices,
+                                    QuadBufferSize(&quadBuf),
+                                    context->render.vertex)) {
+      return SDL_APP_FAILURE;
+    }
+    if (!EmptyGPUTransferQueue(&context->render.queue,
+                               context->render.device)) {
+      return SDL_APP_FAILURE;
+    }
+  } else {
+    SDL_LogDebug(SDL_LOG_CATEGORY_GPU,
+                 "No dynamic dynamic GPU data to transfer");
   }
 
   // Render - App render pass
@@ -753,21 +805,19 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
                               1);
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Binding complete");
 
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Draw quads: %zu instances",
-               vertexCount / 4);
-  SDL_DrawGPUIndexedPrimitives(pass, QUAD_INDEX_COUNT, vertexCount / 4, 0, 0,
-                               0);
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Draw quads: %zu quads", quadBuf.count);
+  uint32_t numIndices = QUAD_INDEX_COUNT * quadBuf.count;
+  SDL_DrawGPUIndexedPrimitives(pass, numIndices, 1, 0, 0, 0);
 
   SDL_EndGPURenderPass(pass);
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass complete");
   SDL_SubmitGPUCommandBuffer(render);
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass complete");
 
-  SDL_free(vertices);
-
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "App iterate complete");
   return SDL_APP_CONTINUE;
 }
+
 SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
   struct Context *context = (struct Context *)appstate;
 
@@ -777,9 +827,10 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
   if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE) {
     return SDL_APP_SUCCESS;
   }
-  return SDL_APP_CONTINUE;
   SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "App event complete");
+  return SDL_APP_CONTINUE;
 }
+
 void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   struct Context *context = (struct Context *)appstate;
 
