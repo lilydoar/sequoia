@@ -1,3 +1,4 @@
+#include "SDL3/SDL_keyboard.h"
 #include <assert.h>
 #include <math.h>
 #include <stdbool.h>
@@ -23,6 +24,7 @@
 #include "cglm/affine-pre.h" // clang-format on
 #include "cglm/cam.h"
 #include "cglm/mat4.h"
+#include "cglm/vec2.h"
 #include "cglm/types.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -43,7 +45,7 @@
 #define MAX_INDICES (MAX_QUADS * 6)
 #define GPU_TRANSFER_QUEUE_MAX 8
 
-#define CLEAR_COLOR (SDL_FColor){0.3f, 0.4f, 0.5f, 1.0f}
+#define CLEAR_COLOR (SDL_FColor){0.54, 0.9, 0.64, 1.0f}
 #define INDEX_SIZE SDL_GPU_INDEXELEMENTSIZE_16BIT
 
 #define QUAD_VERTEX_COUNT 4
@@ -259,10 +261,9 @@ void camera_model_view_proj(struct Camera camera, mat4 mvp) {
 // FIXME: I do not play nicely with the fixed update time or the SDL event
 // system
 struct Input {
-  bool wPressed;
-  bool aPressed;
-  bool sPressed;
-  bool dPressed;
+  const bool *state;
+  bool keys_pressed[SDL_SCANCODE_COUNT];
+  bool keys_released[SDL_SCANCODE_COUNT];
 };
 
 struct AppTime {
@@ -755,7 +756,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                       .finished = false,
                   },
           },
-      .cameraSpeed = 15.0 * SECONDS_PER_UPDATE,
+      .cameraSpeed = 3.6 * SECONDS_PER_UPDATE,
   };
   context->game = game;
 
@@ -777,6 +778,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   struct QuadBuffer quadBuf = {0};
 
+  context->input.state = SDL_GetKeyboardState(NULL);
+
   // App - Time
   context->time.currNs = SDL_GetTicksNS();
   uint64_t elapsed_ns = context->time.currNs - context->time.prevNs;
@@ -797,18 +800,25 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   for (size_t i = 0; i < num_ticks; i++) {
     context->game.time.current += 1;
 
-    if (context->input.wPressed) {
-      context->game.camera.position[1] += context->game.cameraSpeed;
+    vec2 moveDir = {0.0, 0.0};
+    if (context->input.state[SDL_SCANCODE_W]) {
+      moveDir[1] += context->game.cameraSpeed;
     }
-    if (context->input.aPressed) {
-      context->game.camera.position[0] -= context->game.cameraSpeed;
+    if (context->input.state[SDL_SCANCODE_A]) {
+      moveDir[0] -= context->game.cameraSpeed;
     }
-    if (context->input.sPressed) {
-      context->game.camera.position[1] -= context->game.cameraSpeed;
+    if (context->input.state[SDL_SCANCODE_S]) {
+      moveDir[1] -= context->game.cameraSpeed;
     }
-    if (context->input.dPressed) {
-      context->game.camera.position[0] += context->game.cameraSpeed;
+    if (context->input.state[SDL_SCANCODE_D]) {
+      moveDir[0] += context->game.cameraSpeed;
     }
+    if (glm_vec2_norm(moveDir) > context->game.cameraSpeed) {
+      glm_vec2_scale(
+          moveDir, context->game.cameraSpeed / glm_vec2_norm(moveDir), moveDir);
+    }
+    context->game.camera.position[0] += moveDir[0];
+    context->game.camera.position[1] += moveDir[1];
 
     // Animation step
     SpriteAnimationStep(&context->game.fire.animation);
@@ -960,17 +970,14 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
     return SDL_APP_SUCCESS;
   }
 
-  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_W) {
-    context->input.wPressed = true;
+  if (event->type == SDL_EVENT_KEY_DOWN) {
+    // Ignore key repeat events
+    if (!event->key.repeat) {
+      context->input.keys_pressed[event->key.scancode] = true;
+    }
   }
-  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_A) {
-    context->input.aPressed = true;
-  }
-  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_S) {
-    context->input.sPressed = true;
-  }
-  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_D) {
-    context->input.dPressed = true;
+  if (event->type == SDL_EVENT_KEY_UP) {
+    context->input.keys_released[event->key.scancode] = true;
   }
 
   SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "App event complete");
