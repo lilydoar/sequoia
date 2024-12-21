@@ -32,10 +32,11 @@
 #include "gen/atlas/effects_anim.c"
 #include "gen/atlas/resources_anim.c"
 
-#define TICKS_PER_SECOND 60
-#define DELTA_NS (1000000000ULL / TICKS_PER_SECOND)
+#define UPDATES_PER_SECOND 60
+#define SECONDS_PER_UPDATE (1.0 / UPDATES_PER_SECOND)
+#define DELTA_NS (1000000000ULL / UPDATES_PER_SECOND)
 #define ANIMATION_FPS 10
-#define TICKS_PER_FRAME (TICKS_PER_SECOND / ANIMATION_FPS)
+#define UPDATES_PER_FRAME (UPDATES_PER_SECOND / ANIMATION_FPS)
 
 #define MAX_QUADS 1024
 #define MAX_VERTICES (MAX_QUADS * 4)
@@ -255,6 +256,15 @@ void camera_model_view_proj(struct Camera camera, mat4 mvp) {
   glm_mat4_mul(projection, view, mvp);
 }
 
+// FIXME: I do not play nicely with the fixed update time or the SDL event
+// system
+struct Input {
+  bool wPressed;
+  bool aPressed;
+  bool sPressed;
+  bool dPressed;
+};
+
 struct AppTime {
   uint64_t currNs;
   uint64_t prevNs;
@@ -321,12 +331,14 @@ struct Game {
   struct GameTime time;
   struct Camera camera;
   struct Fire fire;
+  float cameraSpeed;
 };
 
 struct Context {
   struct App app;
   struct Window window;
   struct Render render;
+  struct Input input;
   struct Game game;
   struct AppTime time;
 };
@@ -743,6 +755,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                       .finished = false,
                   },
           },
+      .cameraSpeed = 15.0 * SECONDS_PER_UPDATE,
   };
   context->game = game;
 
@@ -750,6 +763,8 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
       .currNs = SDL_GetTicksNS(),
       .prevNs = SDL_GetTicksNS(),
   };
+
+  context->input = (struct Input){0};
 
   *appstate = context;
 
@@ -778,14 +793,29 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
                "Game time: current: %llu accumulated: %llu",
                context->game.time.current, context->game.time.accumulator);
 
+  // Game - Update
   for (size_t i = 0; i < num_ticks; i++) {
     context->game.time.current += 1;
+
+    if (context->input.wPressed) {
+      context->game.camera.position[1] += context->game.cameraSpeed;
+    }
+    if (context->input.aPressed) {
+      context->game.camera.position[0] -= context->game.cameraSpeed;
+    }
+    if (context->input.sPressed) {
+      context->game.camera.position[1] -= context->game.cameraSpeed;
+    }
+    if (context->input.dPressed) {
+      context->game.camera.position[0] += context->game.cameraSpeed;
+    }
 
     // Animation step
     SpriteAnimationStep(&context->game.fire.animation);
   }
 
-  /*AtlasCoordToUV(context->render.atlas, uint32_t x, uint32_t y, float *uv);*/
+  mat4 mvp;
+  camera_model_view_proj(context->game.camera, mvp);
 
   struct AtlasRect rect =
       SpriteAnimationCurrentRect(context->game.fire.animation);
@@ -822,9 +852,6 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
                         context->game.fire.size, uvPos, uvSize)) {
     return SDL_APP_FAILURE;
   }
-
-  mat4 mvp;
-  camera_model_view_proj(context->game.camera, mvp);
 
   // Move dynamic data --> GPU
   if (quadBuf.count > 0) {
@@ -917,6 +944,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   SDL_SubmitGPUCommandBuffer(render);
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass complete");
 
+  context->input = (struct Input){0};
+
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "App iterate complete");
   return SDL_APP_CONTINUE;
 }
@@ -930,6 +959,20 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
   if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_ESCAPE) {
     return SDL_APP_SUCCESS;
   }
+
+  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_W) {
+    context->input.wPressed = true;
+  }
+  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_A) {
+    context->input.aPressed = true;
+  }
+  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_S) {
+    context->input.sPressed = true;
+  }
+  if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_D) {
+    context->input.dPressed = true;
+  }
+
   SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "App event complete");
   return SDL_APP_CONTINUE;
 }
