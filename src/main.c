@@ -15,6 +15,7 @@
 #include "SDL3/SDL_pixels.h"
 #include "SDL3/SDL_stdinc.h"
 #include "SDL3/SDL_surface.h"
+#include "SDL3/SDL_timer.h"
 #include "SDL3/SDL_video.h"
 
 // clang-format off
@@ -26,6 +27,11 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#define TICKS_PER_SECOND 60
+#define DELTA_NS (1000000000ULL / TICKS_PER_SECOND)
+#define ANIMATION_FPS 10
+#define TICKS_PER_FRAME (TICKS_PER_SECOND / ANIMATION_FPS)
 
 #define MAX_QUADS 1024
 #define MAX_VERTICES (MAX_QUADS * 4)
@@ -241,8 +247,14 @@ void camera_model_view_proj(struct Camera camera, mat4 mvp) {
   glm_mat4_mul(projection, view, mvp);
 }
 
-struct Time {
-  uint64_t elapsed;
+struct AppTime {
+  uint64_t currNs;
+  uint64_t prevNs;
+};
+
+struct GameTime {
+  uint64_t current;
+  uint64_t accumulator;
 };
 
 struct Fire {
@@ -251,7 +263,7 @@ struct Fire {
 };
 
 struct Game {
-  struct Time time;
+  struct GameTime time;
   struct Camera camera;
   struct Fire fire;
   uint32_t frameLen;
@@ -263,6 +275,7 @@ struct Context {
   struct Window window;
   struct Render render;
   struct Game game;
+  struct AppTime time;
 };
 
 struct Vertex {
@@ -655,7 +668,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   }
 
   struct Game game = {
-      .time = {.elapsed = 0},
+      .time = {.current = 0},
       .camera =
           {
               .position = {0.0, 0.0},
@@ -669,10 +682,15 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
               .position = {0.0, 0.0},
               .size = {1.0, 1.0},
           },
-      .frameLen = 12,
-      .currentFrame = 7,
+      .frameLen = 6,
+      .currentFrame = 0,
   };
   context->game = game;
+
+  context->time = (struct AppTime){
+      .currNs = SDL_GetTicksNS(),
+      .prevNs = SDL_GetTicksNS(),
+  };
 
   *appstate = context;
 
@@ -685,15 +703,29 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   struct QuadBuffer quadBuf = {0};
 
-  // Game
-  context->game.time.elapsed += 1;
+  // App - Time
+  context->time.currNs = SDL_GetTicksNS();
+  uint64_t elapsed_ns = context->time.currNs - context->time.prevNs;
+  context->time.prevNs = context->time.currNs;
+  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION,
+               "App time: current: %llu elapsed: %llu", context->time.currNs,
+               elapsed_ns);
 
-  /*context->game.camera.position[0] += 0.002;*/
-  /*context->game.camera.position[1] += 0.002;*/
-  /*context->game.camera.scale += 0.01;*/
+  // Game - Time
+  context->game.time.accumulator += elapsed_ns;
+  int num_ticks = (int)(context->game.time.accumulator / DELTA_NS);
+  context->game.time.accumulator -= num_ticks * DELTA_NS;
+  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION,
+               "Game time: current: %llu accumulated: %llu",
+               context->game.time.current, context->game.time.accumulator);
 
-  if (context->game.time.elapsed % context->game.frameLen == 1) {
-    context->game.currentFrame += 1;
+  for (size_t i = 0; i < num_ticks; i++) {
+    context->game.time.current += 1;
+
+    // Animation step
+    if (context->game.time.current % TICKS_PER_FRAME == 0) {
+      context->game.currentFrame += 1;
+    }
   }
 
   float uvWidth = 1.0 / 7.0;
