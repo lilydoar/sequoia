@@ -29,6 +29,8 @@
 #include "stb_image.h"
 
 #include "atlas.h"
+#include "gen/atlas/effects_anim.c"
+#include "gen/atlas/resources_anim.c"
 
 #define TICKS_PER_SECOND 60
 #define DELTA_NS (1000000000ULL / TICKS_PER_SECOND)
@@ -626,7 +628,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   // Render - Texture - Atlas
   struct Atlas atlas = {
-      .path = "assets/gen/atlas/effects.png",
+      .path = "assets/gen/atlas/resources.png",
   };
 
   atlas.pixels = stbi_load(atlas.path, &atlas.w, &atlas.h, &atlas.channels, 0);
@@ -734,10 +736,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
               .size = {1.0, 1.0},
               .animation =
                   (struct SpriteAnimation){
-                      .animation = &ANIM_FIRE,
+                      .animation = &ANIM_HAPPY_SHEEP,
                       .currentFrame = 0,
                       .frameTimeAccumulator = 0,
-                      .paused = false,
+                      .mode = PLAYBACK_LOOP,
                       .finished = false,
                   },
           },
@@ -802,12 +804,12 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   vec2 uvSize = {uv3[0] - uv0[0], uv1[1] - uv0[1]};
 
   // Draw multiple quads
-  int n = 10;
+  int n = 16;
   for (size_t i = 0; i < n; i++) {
     if (!QuadBufferAppend(&quadBuf,
                           (vec2){
-                              cos((float)i / n * 2 * 3.14),
-                              sin((float)i / n * 2 * 3.14),
+                              cos((float)i / n * 2 * 3.14) * 2.0,
+                              sin((float)i / n * 2 * 3.14) * 2.0,
                           },
                           context->game.fire.size, uvPos, uvSize)) {
       return SDL_APP_FAILURE;

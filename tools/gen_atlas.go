@@ -19,13 +19,13 @@ const (
 
 var atlases []Atlas = []Atlas{
 	{name: "effects", folders: []string{"Effects"}},
-	{name: "goblins_buildings", folders: []string{"Factions/Goblins/Buildings"}},
-	{name: "goblins_troops", folders: []string{"Factions/Knights/Troops"}},
-	{name: "knights_buildings", folders: []string{"Factions/Goblins/Buildings"}},
-	{name: "knights_troops", folders: []string{"Factions/Knights/Troops"}},
+	// {name: "goblins_buildings", folders: []string{"Factions/Goblins/Buildings"}},
+	// {name: "goblins_troops", folders: []string{"Factions/Knights/Troops"}},
+	// {name: "knights_buildings", folders: []string{"Factions/Goblins/Buildings"}},
+	// {name: "knights_troops", folders: []string{"Factions/Knights/Troops"}},
 	{name: "resources", folders: []string{"Resources"}},
-	{name: "terrain", folders: []string{"Terrain"}},
-	{name: "ui", folders: []string{"UI"}},
+	// {name: "terrain", folders: []string{"Terrain"}},
+	// {name: "ui", folders: []string{"UI"}},
 }
 
 type Atlas struct {
@@ -302,7 +302,9 @@ const frameArrayTemplate = `static const struct AnimationClip s_{{.Name | lower}
 
 `
 
-const libraryTemplate = `static struct AnimationLibrary g_effectsAnimLibrary = {
+const libraryTemplate = `
+{{- $libName := .LibraryName -}}
+static struct AnimationLibrary g_{{$libName | lower}}AnimLibrary = {
     .clips = {
         {{- range .Clips}}
         s_{{.Name | lower}}Clip,
@@ -312,7 +314,7 @@ const libraryTemplate = `static struct AnimationLibrary g_effectsAnimLibrary = {
 };
 
 {{- range .Clips}}
-#define ANIM_{{.Name | upper}} g_effectsAnimLibrary.clips[{{.Index}}]
+#define ANIM_{{.Name | upper}} g_{{$libName | lower}}AnimLibrary.clips[{{.Index}}]
 {{- end}}
 `
 
@@ -332,8 +334,9 @@ type TemplateClip struct {
 }
 
 type TemplateData struct {
-	InputFile string
-	Clips     []TemplateClip
+	LibraryName string
+	InputFile   string
+	Clips       []TemplateClip
 }
 
 var templateFuncs = template.FuncMap{
@@ -372,8 +375,9 @@ func generateCode(atlasName string, animations []Animation) error {
 	}
 
 	data := TemplateData{
-		InputFile: filepath.Join(assetOutPath, atlasName+".json"),
-		Clips:     clips,
+		LibraryName: atlasName,
+		InputFile:   filepath.Join(assetOutPath, atlasName+".json"),
+		Clips:       clips,
 	}
 
 	// Execute templates

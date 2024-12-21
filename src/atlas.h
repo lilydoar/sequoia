@@ -1,3 +1,6 @@
+#ifndef ATLAS_H
+#define ATLAS_H
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -32,3 +35,5 @@ struct AnimationLibrary {
   struct AnimationClip clips[MAX_ANIMATION_CLIPS];
   size_t clipCount;
 };
+
+#endif /* ATLAS_H */
