@@ -19,7 +19,7 @@ matrix<float,int(4),int(4)>  unpackStorage_0(_MatrixStorage_float4x4_ColMajornat
 }
 
 
-#line 10 "shaders/slang/triangle.slang"
+#line 10 "assets/shaders/triangle.slang"
 struct VertexStageOutput_0
 {
     float3 color_0 [[user(COARSEVERTEX)]];

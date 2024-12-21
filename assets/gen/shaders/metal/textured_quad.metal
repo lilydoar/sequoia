@@ -42,7 +42,7 @@ struct SLANG_ParameterGroup_Uniforms_natural_0
 };
 
 
-#line 58 "shaders/slang/textured_quad.slang"
+#line 58 "assets/shaders/textured_quad.slang"
 struct KernelContext_0
 {
     SLANG_ParameterGroup_Uniforms_natural_0 constant* Uniforms_0;

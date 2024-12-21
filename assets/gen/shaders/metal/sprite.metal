@@ -19,7 +19,7 @@ matrix<float,int(4),int(4)>  unpackStorage_0(_MatrixStorage_float4x4_ColMajornat
 }
 
 
-#line 15 "shaders/slang/sprite.slang"
+#line 15 "assets/shaders/sprite.slang"
 struct VertexOut_0
 {
     float4 position_0 [[position]];
@@ -88,7 +88,7 @@ struct pixelInput_0
 };
 
 
-#line 31 "shaders/slang/sprite.slang"
+#line 31 "assets/shaders/sprite.slang"
 [[fragment]] pixelOutput_0 fragmentMain(pixelInput_0 _S3 [[stage_in]], float4 position_2 [[position]], SLANG_ParameterGroup_Uniform_natural_0 constant* Uniform_2 [[buffer(0)]], texture2d<float, access::sample> atlas_2 [[texture(0)]], sampler samplerState_2 [[sampler(0)]])
 {
 

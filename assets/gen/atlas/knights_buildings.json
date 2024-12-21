@@ -1,5 +1,5 @@
 { "frames": {
-   "Wood_Tower_Destroyed.png": {
+   "Wood_Tower_Red 0.aseprite": {
     "frame": { "x": 0, "y": 0, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -7,7 +7,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_InConstruction.png": {
+   "Wood_Tower_Red 1.aseprite": {
     "frame": { "x": 256, "y": 0, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -15,7 +15,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Purple 0.aseprite": {
+   "Wood_Tower_Red 2.aseprite": {
     "frame": { "x": 512, "y": 0, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -23,7 +23,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Purple 1.aseprite": {
+   "Wood_Tower_Red 3.aseprite": {
     "frame": { "x": 768, "y": 0, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -31,7 +31,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Purple 2.aseprite": {
+   "Wood_Tower_Red 4.aseprite": {
     "frame": { "x": 1024, "y": 0, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -39,7 +39,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Purple 3.aseprite": {
+   "Wood_Tower_Yellow 0.aseprite": {
     "frame": { "x": 0, "y": 192, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -47,7 +47,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Purple 4.aseprite": {
+   "Wood_Tower_Yellow 1.aseprite": {
     "frame": { "x": 256, "y": 192, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -55,7 +55,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Red 0.aseprite": {
+   "Wood_Tower_Yellow 2.aseprite": {
     "frame": { "x": 512, "y": 192, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -63,7 +63,7 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Red 1.aseprite": {
+   "Wood_Tower_Yellow 3.aseprite": {
     "frame": { "x": 768, "y": 192, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
@@ -71,64 +71,8 @@
     "sourceSize": { "w": 256, "h": 192 },
     "duration": 100
    },
-   "Wood_Tower_Red 2.aseprite": {
-    "frame": { "x": 1024, "y": 192, "w": 256, "h": 192 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
-    "sourceSize": { "w": 256, "h": 192 },
-    "duration": 100
-   },
-   "Wood_Tower_Red 3.aseprite": {
-    "frame": { "x": 0, "y": 384, "w": 256, "h": 192 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
-    "sourceSize": { "w": 256, "h": 192 },
-    "duration": 100
-   },
-   "Wood_Tower_Red 4.aseprite": {
-    "frame": { "x": 256, "y": 384, "w": 256, "h": 192 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
-    "sourceSize": { "w": 256, "h": 192 },
-    "duration": 100
-   },
-   "Wood_Tower_Yellow 0.aseprite": {
-    "frame": { "x": 512, "y": 384, "w": 256, "h": 192 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
-    "sourceSize": { "w": 256, "h": 192 },
-    "duration": 100
-   },
-   "Wood_Tower_Yellow 1.aseprite": {
-    "frame": { "x": 768, "y": 384, "w": 256, "h": 192 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
-    "sourceSize": { "w": 256, "h": 192 },
-    "duration": 100
-   },
-   "Wood_Tower_Yellow 2.aseprite": {
-    "frame": { "x": 1024, "y": 384, "w": 256, "h": 192 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
-    "sourceSize": { "w": 256, "h": 192 },
-    "duration": 100
-   },
-   "Wood_Tower_Yellow 3.aseprite": {
-    "frame": { "x": 0, "y": 576, "w": 256, "h": 192 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
-    "sourceSize": { "w": 256, "h": 192 },
-    "duration": 100
-   },
    "Wood_Tower_Yellow 4.aseprite": {
-    "frame": { "x": 256, "y": 576, "w": 256, "h": 192 },
+    "frame": { "x": 1024, "y": 192, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
@@ -152,7 +96,7 @@
     "duration": 100
    },
    "Wood_Tower_Blue 0.aseprite": {
-    "frame": { "x": 512, "y": 576, "w": 256, "h": 192 },
+    "frame": { "x": 0, "y": 384, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
@@ -160,7 +104,7 @@
     "duration": 100
    },
    "Wood_Tower_Blue 1.aseprite": {
-    "frame": { "x": 768, "y": 576, "w": 256, "h": 192 },
+    "frame": { "x": 256, "y": 384, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
@@ -168,7 +112,7 @@
     "duration": 100
    },
    "Wood_Tower_Blue 2.aseprite": {
-    "frame": { "x": 1024, "y": 576, "w": 256, "h": 192 },
+    "frame": { "x": 512, "y": 384, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
@@ -176,7 +120,7 @@
     "duration": 100
    },
    "Wood_Tower_Blue 3.aseprite": {
-    "frame": { "x": 0, "y": 768, "w": 256, "h": 192 },
+    "frame": { "x": 768, "y": 384, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
@@ -184,6 +128,62 @@
     "duration": 100
    },
    "Wood_Tower_Blue 4.aseprite": {
+    "frame": { "x": 1024, "y": 384, "w": 256, "h": 192 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
+    "sourceSize": { "w": 256, "h": 192 },
+    "duration": 100
+   },
+   "Wood_Tower_Destroyed.png": {
+    "frame": { "x": 0, "y": 576, "w": 256, "h": 192 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
+    "sourceSize": { "w": 256, "h": 192 },
+    "duration": 100
+   },
+   "Wood_Tower_InConstruction.png": {
+    "frame": { "x": 256, "y": 576, "w": 256, "h": 192 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
+    "sourceSize": { "w": 256, "h": 192 },
+    "duration": 100
+   },
+   "Wood_Tower_Purple 0.aseprite": {
+    "frame": { "x": 512, "y": 576, "w": 256, "h": 192 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
+    "sourceSize": { "w": 256, "h": 192 },
+    "duration": 100
+   },
+   "Wood_Tower_Purple 1.aseprite": {
+    "frame": { "x": 768, "y": 576, "w": 256, "h": 192 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
+    "sourceSize": { "w": 256, "h": 192 },
+    "duration": 100
+   },
+   "Wood_Tower_Purple 2.aseprite": {
+    "frame": { "x": 1024, "y": 576, "w": 256, "h": 192 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
+    "sourceSize": { "w": 256, "h": 192 },
+    "duration": 100
+   },
+   "Wood_Tower_Purple 3.aseprite": {
+    "frame": { "x": 0, "y": 768, "w": 256, "h": 192 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 192 },
+    "sourceSize": { "w": 256, "h": 192 },
+    "duration": 100
+   },
+   "Wood_Tower_Purple 4.aseprite": {
     "frame": { "x": 256, "y": 768, "w": 256, "h": 192 },
     "rotated": false,
     "trimmed": false,

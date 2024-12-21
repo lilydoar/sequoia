@@ -33,41 +33,6 @@ type Atlas struct {
 	folders []string
 }
 
-type Rect struct {
-	X int `json:"x"`
-	Y int `json:"y"`
-	W int `json:"w"`
-	H int `json:"h"`
-}
-
-type Size struct {
-	W int `json:"w"`
-	H int `json:"h"`
-}
-
-type Frame struct {
-	Frame            Rect `json:"frame"`
-	Rotated          bool `json:"rotated"`
-	Trimmed          bool `json:"trimmed"`
-	SpriteSourceSize Rect `json:"spriteSourceSize"`
-	SourceSize       Size `json:"sourceSize"`
-	Duration         int  `json:"duration"`
-}
-
-type Meta struct {
-	App     string `json:"app"`
-	Version string `json:"version"`
-	Image   string `json:"image"`
-	Format  string `json:"format"`
-	Size    Size   `json:"size"`
-	Scale   string `json:"scale"`
-}
-
-type AsepriteJSON struct {
-	Frames map[string]Frame `json:"frames"`
-	Meta   Meta             `json:"meta"`
-}
-
 func main() {
 	// Reset output directories
 	resetDir(assetOutPath)
@@ -191,6 +156,41 @@ func generateAtlas(atlas Atlas) error {
 
 	fmt.Printf("Generating %s atlas...\n", atlas.name)
 	return cmd.Run()
+}
+
+type Rect struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+	W int `json:"w"`
+	H int `json:"h"`
+}
+
+type Size struct {
+	W int `json:"w"`
+	H int `json:"h"`
+}
+
+type Frame struct {
+	Frame            Rect `json:"frame"`
+	Rotated          bool `json:"rotated"`
+	Trimmed          bool `json:"trimmed"`
+	SpriteSourceSize Rect `json:"spriteSourceSize"`
+	SourceSize       Size `json:"sourceSize"`
+	Duration         int  `json:"duration"`
+}
+
+type Meta struct {
+	App     string `json:"app"`
+	Version string `json:"version"`
+	Image   string `json:"image"`
+	Format  string `json:"format"`
+	Size    Size   `json:"size"`
+	Scale   string `json:"scale"`
+}
+
+type AsepriteJSON struct {
+	Frames map[string]Frame `json:"frames"`
+	Meta   Meta             `json:"meta"`
 }
 
 func parseAtlasJson(atlasName string) (*AsepriteJSON, error) {
@@ -398,7 +398,7 @@ func generateCode(atlasName string, animations []Animation) error {
 	}
 
 	// Create output directory
-	outFile := filepath.Join(codeOutPath, atlasName+"_anim.c")
+	outFile := filepath.Join(codeOutPath, atlasName+".atlas.c")
 
 	dir := filepath.Dir(outFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {

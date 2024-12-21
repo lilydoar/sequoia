@@ -31,8 +31,8 @@
 #include "stb_image.h"
 
 #include "atlas.h"
-#include "gen/atlas/effects_anim.c"
-#include "gen/atlas/resources_anim.c"
+#include "gen/atlas/effects.atlas.c"
+#include "gen/atlas/resources.atlas.c"
 
 #define UPDATES_PER_SECOND 60
 #define SECONDS_PER_UPDATE (1.0 / UPDATES_PER_SECOND)
@@ -528,7 +528,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   const char *shaderPath;
   if (deviceFormats & SDL_GPU_SHADERFORMAT_MSL) {
     render.shader = SDL_GPU_SHADERFORMAT_MSL;
-    shaderPath = "shaders/metal/sprite.metal";
+    shaderPath = "assets/gen/shaders/metal/sprite.metal";
   } else {
     return SDL_APP_FAILURE;
   }
