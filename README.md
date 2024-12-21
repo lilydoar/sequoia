@@ -1,26 +1,17 @@
 # Sequoia
 
-Sequoia is a 2D game engine built for learning.
+Sequoia is a 2D game engine built for learning purposes.
 
 ## References
 
 - <https://wiki.libsdl.org/SDL3/FrontPage>
+- <https://github.com/TheSpydog/SDL_gpu_examples/tree/main>
 - <http://shader-slang.com/slang/>
 - <https://github.com/recp/cglm>
-- <https://github.com/TheSpydog/SDL_gpu_examples/tree/main>
 - <http://nothings.org/stb_ds/>
 - <https://www.aseprite.org/docs/>
 
-## Stream
-
-# Thu Dec 12 2024
-
-Example Games
-
-1. move units around a map to construct buildings
-1. rhythm game
-
-SDL Graphics notes:
+## SDL Notes:
 
 A pipeline is a structure specifying the parameters of a graphics pipeline state.
 A pipeline has
