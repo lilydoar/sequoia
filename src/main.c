@@ -804,7 +804,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   vec2 uvSize = {uv3[0] - uv0[0], uv1[1] - uv0[1]};
 
   // Draw multiple quads
-  int n = 16;
+  int n = 18;
   for (size_t i = 0; i < n; i++) {
     if (!QuadBufferAppend(&quadBuf,
                           (vec2){
