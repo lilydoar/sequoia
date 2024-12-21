@@ -9,27 +9,16 @@ Sequoia is a 2D game engine built for learning.
 - <https://github.com/recp/cglm>
 - <https://github.com/TheSpydog/SDL_gpu_examples/tree/main>
 - <http://nothings.org/stb_ds/>
-- <https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md>
-
-## Structure
+- <https://www.aseprite.org/docs/>
 
 ## Stream
 
 # Thu Dec 12 2024
 
-Todo
+Example Games
 
-- Make structs
-  - Texture,
-  - Sprite(used in scene/attached to entities),
-  - ShaderAction: A programmable way to apply a shader to a rect,
-  - RenderPass,
-  - RenderStep(begins and ends SDLrenderpass(S)): Things like RenderTileMap,
-    RenderEntities, RenderEffects, RenderUI, RenderMenu
-  - Quad,
-- Triangle example
-- Texture example
-- Compute buffer demo
+1. move units around a map to construct buildings
+1. rhythm game
 
 SDL Graphics notes:
 
@@ -71,13 +60,3 @@ Steps to move data between the CPU and GPU
 - I think I want an interface where I can accumulate upload commands before the
   creation of a copy pass. Then have a function which creates a copy pass,
   applies all the commands, and then ends the copy pass
-
-# Sequioa notes
-
-Sequioa will have Types of Buckets. Buckets are just various types of Buffers.
-Sequioa defines a fixed set of transition types between Bucket types
-
-Example Games
-
-1. move units around a map to construct buildings
-1. rhythm game

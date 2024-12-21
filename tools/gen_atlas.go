@@ -19,13 +19,13 @@ const (
 
 var atlases []Atlas = []Atlas{
 	{name: "effects", folders: []string{"Effects"}},
-	// {name: "goblins_buildings", folders: []string{"Factions/Goblins/Buildings"}},
-	// {name: "goblins_troops", folders: []string{"Factions/Knights/Troops"}},
-	// {name: "knights_buildings", folders: []string{"Factions/Goblins/Buildings"}},
-	// {name: "knights_troops", folders: []string{"Factions/Knights/Troops"}},
+	{name: "goblins_buildings", folders: []string{"Factions/Goblins/Buildings"}},
+	{name: "goblins_troops", folders: []string{"Factions/Knights/Troops"}},
+	{name: "knights_buildings", folders: []string{"Factions/Goblins/Buildings"}},
+	{name: "knights_troops", folders: []string{"Factions/Knights/Troops"}},
 	{name: "resources", folders: []string{"Resources"}},
-	// {name: "terrain", folders: []string{"Terrain"}},
-	// {name: "ui", folders: []string{"UI"}},
+	{name: "terrain", folders: []string{"Terrain"}},
+	{name: "ui", folders: []string{"UI"}},
 }
 
 type Atlas struct {
@@ -291,11 +291,7 @@ const frameArrayTemplate = `static const struct AnimationClip s_{{.Name | lower}
     .frameCount = {{len .Frames}},
     .frames = {
         {{- range .Frames}}
-        {
-            .frameName = "{{.Name}}",
-            .rect = { {{.X}}, {{.Y}}, {{.W}}, {{.H}} },
-            .durationTicks = {{.Duration}}
-        },
+        { .frameName = "{{.Name}}", .rect = { {{.X}}, {{.Y}}, {{.W}}, {{.H}} }, .durationTicks = {{.Duration}} },
         {{- end}}
     }
 };
@@ -345,6 +341,10 @@ var templateFuncs = template.FuncMap{
 }
 
 func generateCode(atlasName string, animations []Animation) error {
+	if len(animations) == 0 {
+		return nil
+	}
+
 	// Create templates
 	headerTmpl := template.Must(template.New("header").Parse(headerTemplate))
 	frameTmpl := template.Must(template.New("frame").Funcs(templateFuncs).Parse(frameArrayTemplate))
