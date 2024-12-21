@@ -28,6 +28,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "atlas.c"
+
 #define TICKS_PER_SECOND 60
 #define DELTA_NS (1000000000ULL / TICKS_PER_SECOND)
 #define ANIMATION_FPS 10
@@ -73,6 +75,10 @@ struct Atlas {
   SDL_GPUSampler *sampler;
 };
 size_t AtlasSize(struct Atlas self) { return self.w * self.h * self.channels; }
+void AtlasCoordToUV(struct Atlas self, uint32_t x, uint32_t y, vec2 uv) {
+  uv[0] = (float)x / (float)self.w;
+  uv[1] = (float)y / (float)self.h;
+}
 
 enum GPUTransferType { GPU_TRANSFER_BUFFER, GPU_TRANSFER_TEXTURE };
 struct GPUTransferQueueItem {
@@ -257,17 +263,58 @@ struct GameTime {
   uint64_t accumulator;
 };
 
+struct SpriteAnimation {
+  struct AnimationClip *animation;
+  size_t currentFrame;
+  uint32_t frameTimeAccumulator;
+  bool paused;
+  bool finished;
+};
+struct AtlasRect SpriteAnimationCurrentRect(struct SpriteAnimation self) {
+  return self.animation->frames[self.currentFrame].rect;
+}
+void SpriteAnimationStep(struct SpriteAnimation *self) {
+  if (self->paused || self->finished) {
+    return;
+  }
+
+  self->frameTimeAccumulator += 1;
+
+  struct AnimationFrame currentFrame =
+      self->animation->frames[self->currentFrame];
+  if (self->frameTimeAccumulator < currentFrame.duration_ticks) {
+    return;
+  }
+
+  self->frameTimeAccumulator = 0;
+  self->currentFrame++;
+  if (self->currentFrame < self->animation->frame_count) {
+    return;
+  }
+
+  switch (self->animation->mode) {
+  case PLAYBACK_LOOP:
+    self->currentFrame = 0;
+    break;
+
+  case PLAYBACK_ONCE:
+    // Stay on the last frame
+    self->currentFrame = self->animation->frame_count - 1;
+    self->finished = true;
+    break;
+  }
+}
+
 struct Fire {
   vec2 position;
   vec2 size;
+  struct SpriteAnimation animation;
 };
 
 struct Game {
   struct GameTime time;
   struct Camera camera;
   struct Fire fire;
-  uint32_t frameLen;
-  uint32_t currentFrame;
 };
 
 struct Context {
@@ -575,7 +622,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   // Render - Texture - Atlas
   struct Atlas atlas = {
-      .path = "assets/sprites/Effects/Fire/fire.png",
+      .path = "assets/gen/atlas/effects.png",
   };
 
   atlas.pixels = stbi_load(atlas.path, &atlas.w, &atlas.h, &atlas.channels, 0);
@@ -681,9 +728,15 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           {
               .position = {0.0, 0.0},
               .size = {1.0, 1.0},
+              .animation =
+                  (struct SpriteAnimation){
+                      .animation = &ANIM_FIRE,
+                      .currentFrame = 0,
+                      .frameTimeAccumulator = 0,
+                      .paused = false,
+                      .finished = false,
+                  },
           },
-      .frameLen = 6,
-      .currentFrame = 0,
   };
   context->game = game;
 
@@ -723,16 +776,26 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     context->game.time.current += 1;
 
     // Animation step
-    if (context->game.time.current % TICKS_PER_FRAME == 0) {
-      context->game.currentFrame += 1;
-    }
+    SpriteAnimationStep(&context->game.fire.animation);
   }
 
-  float uvWidth = 1.0 / 7.0;
-  vec2 uvPos = {fmod(uvWidth * context->game.currentFrame, 1.0), 0.0};
-  vec2 uvSize = {uvWidth, 1.0};
+  /*AtlasCoordToUV(context->render.atlas, uint32_t x, uint32_t y, float *uv);*/
 
-  struct Fire fire = context->game.fire;
+  struct AtlasRect rect =
+      SpriteAnimationCurrentRect(context->game.fire.animation);
+
+  vec2 uv0;
+  vec2 uv1;
+  vec2 uv2;
+  vec2 uv3;
+
+  AtlasCoordToUV(context->render.atlas, rect.x, rect.y, uv0);
+  AtlasCoordToUV(context->render.atlas, rect.x, rect.y + rect.h, uv1);
+  AtlasCoordToUV(context->render.atlas, rect.x + rect.w, rect.y + rect.h, uv2);
+  AtlasCoordToUV(context->render.atlas, rect.x + rect.w, rect.y, uv3);
+
+  vec2 uvPos = {uv0[0], uv0[1]};
+  vec2 uvSize = {uv3[0] - uv0[0], uv1[1] - uv0[1]};
 
   // Draw multiple quads
   int n = 10;
@@ -742,13 +805,15 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
                               cos((float)i / n * 2 * 3.14),
                               sin((float)i / n * 2 * 3.14),
                           },
-                          fire.size, uvPos, uvSize)) {
+                          context->game.fire.size, uvPos, uvSize)) {
       return SDL_APP_FAILURE;
     }
   }
 
-  if (!QuadBufferAppend(&quadBuf, (vec2){fire.position[0], fire.position[1]},
-                        fire.size, uvPos, uvSize)) {
+  if (!QuadBufferAppend(&quadBuf,
+                        (vec2){context->game.fire.position[0],
+                               context->game.fire.position[1]},
+                        context->game.fire.size, uvPos, uvSize)) {
     return SDL_APP_FAILURE;
   }
 

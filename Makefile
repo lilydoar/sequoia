@@ -6,7 +6,7 @@ LIB_FLAGS = external/cglm/build/libcglm.a `pkg-config --cflags --libs sdl3`
 
 # File names
 TARGET = build/bin/sequoia
-SOURCES = src/main.c
+SOURCES = src/main.c src/atlas.c
 
 # Ensure the bin directory exists
 $(shell mkdir -p build/bin)
