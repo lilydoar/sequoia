@@ -2,9 +2,7 @@
 
 set -e
 
-# Clean the output folders
-rm -r shaders/metal
-mkdir -p shaders/metal
+mkdir -p assets/gen/shaders/metal
 
 # Compile slang shaders to metal
 for file in shaders/slang/*.slang; do

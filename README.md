@@ -9,6 +9,7 @@ Sequoia is a 2D game engine built for learning.
 - <https://github.com/recp/cglm>
 - <https://github.com/TheSpydog/SDL_gpu_examples/tree/main>
 - <http://nothings.org/stb_ds/>
+- <https://github.com/aseprite/aseprite/blob/main/docs/ase-file-specs.md>
 
 ## Structure
 
