@@ -5,8 +5,9 @@ INC_FLAGS = -Isrc/ -Iexternal/cglm/include -Iexternal/stb
 LIB_FLAGS = external/cglm/build/libcglm.a `pkg-config --cflags --libs sdl3`
 
 # File names
-TARGET = build/bin/sequoia
-SOURCES = src/main.c src/atlas.c
+TARGET = sequoia
+BUILD = build/bin
+SOURCES = src/main.c
 
 # Ensure the bin directory exists
 $(shell mkdir -p build/bin)
@@ -14,11 +15,11 @@ $(shell mkdir -p build/bin)
 all: $(TARGET)
 
 $(TARGET): $(SOURCES)
-	$(CC) $(CFLAGS) $(INC_FLAGS) $(LIB_FLAGS) $(PKGCONFIG) $(SOURCES) -o $(TARGET)
+	$(CC) $(CFLAGS) $(INC_FLAGS) $(LIB_FLAGS) $(PKGCONFIG) $(SOURCES) -o $(BUILD)/$(TARGET)
 
 # Clean built files
 clean:
-	rm -f $(TARGET)
+	rm -rf $(BUILD)
 
 # Phony targets
 .PHONY: all clean

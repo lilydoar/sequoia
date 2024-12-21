@@ -22,14 +22,8 @@ struct AnimationFrame {
   uint32_t durationTicks;
 };
 
-enum PlaybackMode {
-  PLAYBACK_LOOP,
-  PLAYBACK_ONCE,
-};
-
 struct AnimationClip {
   const char name[MAX_ANIMATION_NAME];
-  enum PlaybackMode mode;
   struct AnimationFrame frames[MAX_ANIMATION_FRAMES];
   size_t frameCount;
 };

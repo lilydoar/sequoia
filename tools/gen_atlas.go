@@ -18,7 +18,6 @@ const (
 )
 
 var atlases []Atlas = []Atlas{
-	{name: "deco", folders: []string{"Deco"}},
 	{name: "effects", folders: []string{"Effects"}},
 	{name: "goblins_buildings", folders: []string{"Factions/Goblins/Buildings"}},
 	{name: "goblins_troops", folders: []string{"Factions/Knights/Troops"}},

@@ -28,7 +28,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#include "atlas.c"
+#include "atlas.h"
 
 #define TICKS_PER_SECOND 60
 #define DELTA_NS (1000000000ULL / TICKS_PER_SECOND)
@@ -263,18 +263,22 @@ struct GameTime {
   uint64_t accumulator;
 };
 
+enum PlaybackMode {
+  PLAYBACK_LOOP,
+  PLAYBACK_ONCE,
+};
 struct SpriteAnimation {
   struct AnimationClip *animation;
   size_t currentFrame;
   uint32_t frameTimeAccumulator;
-  bool paused;
+  enum PlaybackMode mode;
   bool finished;
 };
 struct AtlasRect SpriteAnimationCurrentRect(struct SpriteAnimation self) {
   return self.animation->frames[self.currentFrame].rect;
 }
 void SpriteAnimationStep(struct SpriteAnimation *self) {
-  if (self->paused || self->finished) {
+  if (self->finished) {
     return;
   }
 
@@ -282,24 +286,24 @@ void SpriteAnimationStep(struct SpriteAnimation *self) {
 
   struct AnimationFrame currentFrame =
       self->animation->frames[self->currentFrame];
-  if (self->frameTimeAccumulator < currentFrame.duration_ticks) {
+  if (self->frameTimeAccumulator < currentFrame.durationTicks) {
     return;
   }
 
   self->frameTimeAccumulator = 0;
   self->currentFrame++;
-  if (self->currentFrame < self->animation->frame_count) {
+  if (self->currentFrame < self->animation->frameCount) {
     return;
   }
 
-  switch (self->animation->mode) {
+  switch (self->mode) {
   case PLAYBACK_LOOP:
     self->currentFrame = 0;
     break;
 
   case PLAYBACK_ONCE:
     // Stay on the last frame
-    self->currentFrame = self->animation->frame_count - 1;
+    self->currentFrame = self->animation->frameCount - 1;
     self->finished = true;
     break;
   }
