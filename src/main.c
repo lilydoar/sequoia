@@ -1,5 +1,7 @@
 #include "SDL3/SDL_keyboard.h"
+#include "SDL3/SDL_scancode.h"
 #include <assert.h>
+#include <complex.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -37,8 +39,6 @@
 #define UPDATES_PER_SECOND 60
 #define SECONDS_PER_UPDATE (1.0 / UPDATES_PER_SECOND)
 #define DELTA_NS (1000000000ULL / UPDATES_PER_SECOND)
-#define ANIMATION_FPS 10
-#define UPDATES_PER_FRAME (UPDATES_PER_SECOND / ANIMATION_FPS)
 
 #define MAX_QUADS 1024
 #define MAX_VERTICES (MAX_QUADS * 4)
@@ -52,6 +52,8 @@
 #define QUAD_INDEX_COUNT 6
 static float QUAD_VERTEX_POSITIONS[] = {-0.5, 0.5,  -0.5, -0.5,
                                         0.5,  -0.5, 0.5,  0.5};
+
+#define MAX_SHEEP 1024
 
 struct App {
   const char *name;
@@ -248,18 +250,16 @@ void camera_model_view_proj(struct Camera camera, mat4 mvp) {
   float scaled_height = camera.size[1] * camera.scale / 2;
 
   mat4 projection;
-  glm_ortho(scaled_width, -scaled_width, -scaled_height, scaled_height, 0.0,
+  glm_ortho(-scaled_width, scaled_width, -scaled_height, scaled_height, 0.0,
             1000.0, projection);
 
   mat4 view;
   glm_mat4_identity(view);
-  glm_translate(view, (vec3){camera.position[0], -camera.position[1], 0.0});
+  glm_translate(view, (vec3){-camera.position[0], -camera.position[1], 0.0});
 
   glm_mat4_mul(projection, view, mvp);
 }
 
-// FIXME: I do not play nicely with the fixed update time or the SDL event
-// system
 struct Input {
   const bool *state;
   bool keys_pressed[SDL_SCANCODE_COUNT];
@@ -322,7 +322,7 @@ void SpriteAnimationStep(struct SpriteAnimation *self) {
   }
 }
 
-struct Fire {
+struct Sheep {
   vec2 position;
   vec2 size;
   struct SpriteAnimation animation;
@@ -331,7 +331,11 @@ struct Fire {
 struct Game {
   struct GameTime time;
   struct Camera camera;
-  struct Fire fire;
+  struct Sheep sheep[MAX_SHEEP];
+  size_t sheepCount;
+  float sheepSpeed;
+  float sheepMaxDist;
+  uint32_t spawnCooldown;
   float cameraSpeed;
 };
 
@@ -365,6 +369,8 @@ bool QuadBufferAppend(struct QuadBuffer *quadBuf, vec2 quadPos, vec2 quadSize,
   }
 
   struct Vertex v0 = {
+      // FIXME: This is not correctly scaling the quad vertices. Making quads
+      // too small because multiplying the size by 0.5
       .position = {QUAD_VERTEX_POSITIONS[0] * quadSize[0] + quadPos[0],
                    QUAD_VERTEX_POSITIONS[1] * quadSize[1] + quadPos[1]},
       .uv = {uvPos[0], uvPos[1]},
@@ -743,19 +749,22 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                        1.0},
               .scale = 5.0,
           },
-      .fire =
-          {
-              .position = {0.0, 0.0},
-              .size = {1.0, 1.0},
-              .animation =
-                  (struct SpriteAnimation){
-                      .animation = &ANIM_HAPPY_SHEEP,
-                      .currentFrame = 0,
-                      .frameTimeAccumulator = 0,
-                      .mode = PLAYBACK_LOOP,
-                      .finished = false,
-                  },
-          },
+      .sheep = {{
+          .position = {0.0, 0.0},
+          .size = {1.0, 1.0},
+          .animation =
+              {
+                  .animation = &ANIM_HAPPY_SHEEP,
+                  .mode = PLAYBACK_LOOP,
+                  .finished = false,
+                  .currentFrame = 0,
+                  .frameTimeAccumulator = 0,
+              },
+      }},
+      .sheepCount = 1,
+      .sheepSpeed = 0.64 * SECONDS_PER_UPDATE,
+      .sheepMaxDist = 1.2,
+      .spawnCooldown = 0,
       .cameraSpeed = 3.6 * SECONDS_PER_UPDATE,
   };
   context->game = game;
@@ -800,6 +809,12 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   for (size_t i = 0; i < num_ticks; i++) {
     context->game.time.current += 1;
 
+    // Animation step
+    for (size_t j = 0; j < context->game.sheepCount; j++) {
+      SpriteAnimationStep(&context->game.sheep[j].animation);
+    }
+
+    // Camera movement
     vec2 moveDir = {0.0, 0.0};
     if (context->input.state[SDL_SCANCODE_W]) {
       moveDir[1] += context->game.cameraSpeed;
@@ -820,47 +835,104 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     context->game.camera.position[0] += moveDir[0];
     context->game.camera.position[1] += moveDir[1];
 
-    // Animation step
-    SpriteAnimationStep(&context->game.fire.animation);
+    // Spawn a new sheep
+    if (context->game.spawnCooldown > 0) {
+      context->game.spawnCooldown -= 1;
+    }
+    if (context->input.state[SDL_SCANCODE_SPACE] &&
+        context->game.sheepCount < MAX_SHEEP &&
+        context->game.spawnCooldown == 0) {
+      struct Sheep newSheep = {
+          .position = {context->game.camera.position[0],
+                       context->game.camera.position[1]},
+          .size = {1.0, 1.0},
+          .animation =
+              {
+                  .animation = &ANIM_HAPPY_SHEEP,
+                  .mode = PLAYBACK_LOOP,
+                  .finished = false,
+                  .currentFrame = 0,
+                  .frameTimeAccumulator = 0,
+              },
+      };
+
+      context->game.sheep[context->game.sheepCount] = newSheep;
+      context->game.sheepCount += 1;
+      context->game.spawnCooldown = 20;
+    }
+
+    // Sheep movement
+    for (size_t j = 0; j < context->game.sheepCount; j++) {
+      vec2 sheepMoveDir;
+      glm_vec2_sub(context->game.camera.position,
+                   context->game.sheep[j].position, sheepMoveDir);
+
+      float dist = glm_vec2_norm(sheepMoveDir);
+      if (dist <= context->game.sheepMaxDist) {
+        continue;
+      }
+      if (dist > context->game.sheepSpeed) {
+        glm_vec2_scale(sheepMoveDir,
+                       context->game.sheepSpeed / glm_vec2_norm(sheepMoveDir),
+                       sheepMoveDir);
+      }
+
+      context->game.sheep[j].position[0] += sheepMoveDir[0];
+      context->game.sheep[j].position[1] += sheepMoveDir[1];
+    }
+    // Sheep collision
+    for (size_t j = 0; j < context->game.sheepCount; j++) {
+      vec2 impulse = {0.0, 0.0};
+      for (size_t k = 0; k < context->game.sheepCount; k++) {
+        if (j == k) {
+          continue;
+        }
+
+        vec2 diff;
+        glm_vec2_sub(context->game.sheep[j].position,
+                     context->game.sheep[k].position, diff);
+        float dist = glm_vec2_norm(diff);
+        if (dist < 0.25) {
+          float overlap = (0.25 + 0.25) - dist;
+          glm_vec2_scale(diff, overlap, diff);
+
+          impulse[0] += diff[0];
+          impulse[1] += diff[1];
+        }
+      }
+      context->game.sheep[j].position[0] += impulse[0];
+      context->game.sheep[j].position[1] += impulse[1];
+    }
   }
 
   mat4 mvp;
   camera_model_view_proj(context->game.camera, mvp);
 
-  struct AtlasRect rect =
-      SpriteAnimationCurrentRect(context->game.fire.animation);
+  // Draw Sheep
+  for (size_t i = 0; i < context->game.sheepCount; i++) {
+    struct AtlasRect rect =
+        SpriteAnimationCurrentRect(context->game.sheep[i].animation);
 
-  vec2 uv0;
-  vec2 uv1;
-  vec2 uv2;
-  vec2 uv3;
+    vec2 uv0;
+    vec2 uv1;
+    vec2 uv2;
+    vec2 uv3;
 
-  AtlasCoordToUV(context->render.atlas, rect.x, rect.y, uv0);
-  AtlasCoordToUV(context->render.atlas, rect.x, rect.y + rect.h, uv1);
-  AtlasCoordToUV(context->render.atlas, rect.x + rect.w, rect.y + rect.h, uv2);
-  AtlasCoordToUV(context->render.atlas, rect.x + rect.w, rect.y, uv3);
+    AtlasCoordToUV(context->render.atlas, rect.x, rect.y, uv0);
+    AtlasCoordToUV(context->render.atlas, rect.x, rect.y + rect.h, uv1);
+    AtlasCoordToUV(context->render.atlas, rect.x + rect.w, rect.y + rect.h,
+                   uv2);
+    AtlasCoordToUV(context->render.atlas, rect.x + rect.w, rect.y, uv3);
 
-  vec2 uvPos = {uv0[0], uv0[1]};
-  vec2 uvSize = {uv3[0] - uv0[0], uv1[1] - uv0[1]};
+    vec2 uvPos = {uv0[0], uv0[1]};
+    vec2 uvSize = {uv3[0] - uv0[0], uv1[1] - uv0[1]};
 
-  // Draw multiple quads
-  int n = 18;
-  for (size_t i = 0; i < n; i++) {
     if (!QuadBufferAppend(&quadBuf,
-                          (vec2){
-                              cos((float)i / n * 2 * 3.14) * 2.0,
-                              sin((float)i / n * 2 * 3.14) * 2.0,
-                          },
-                          context->game.fire.size, uvPos, uvSize)) {
+                          (vec2){context->game.sheep[i].position[0],
+                                 context->game.sheep[i].position[1]},
+                          context->game.sheep[i].size, uvPos, uvSize)) {
       return SDL_APP_FAILURE;
     }
-  }
-
-  if (!QuadBufferAppend(&quadBuf,
-                        (vec2){context->game.fire.position[0],
-                               context->game.fire.position[1]},
-                        context->game.fire.size, uvPos, uvSize)) {
-    return SDL_APP_FAILURE;
   }
 
   // Move dynamic data --> GPU
