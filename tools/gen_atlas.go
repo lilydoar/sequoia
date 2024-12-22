@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -18,14 +17,14 @@ const (
 )
 
 var atlases []Atlas = []Atlas{
-	{name: "effects", folders: []string{"Effects"}},
-	{name: "goblins_buildings", folders: []string{"Factions/Goblins/Buildings"}},
-	{name: "goblins_troops", folders: []string{"Factions/Knights/Troops"}},
-	{name: "knights_buildings", folders: []string{"Factions/Goblins/Buildings"}},
-	{name: "knights_troops", folders: []string{"Factions/Knights/Troops"}},
+	// {name: "effects", folders: []string{"Effects"}},
+	// {name: "goblins_buildings", folders: []string{"Factions/Goblins/Buildings"}},
+	// {name: "goblins_troops", folders: []string{"Factions/Knights/Troops"}},
+	// {name: "knights_buildings", folders: []string{"Factions/Goblins/Buildings"}},
+	// {name: "knights_troops", folders: []string{"Factions/Knights/Troops"}},
 	{name: "resources", folders: []string{"Resources"}},
-	{name: "terrain", folders: []string{"Terrain"}},
-	{name: "ui", folders: []string{"UI"}},
+	// {name: "terrain", folders: []string{"Terrain"}},
+	// {name: "ui", folders: []string{"UI"}},
 }
 
 type Atlas struct {
@@ -61,7 +60,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		animations := groupFrames(spriteData.Frames)
+		animations := groupFrames(spriteData.Frames, spriteData.Meta.FrameTags)
 
 		if err = generateCode(atlas.name, animations); err != nil {
 			fmt.Printf("Error generating code: %v\n", err)
@@ -146,6 +145,9 @@ func generateAtlas(atlas Atlas) error {
 		"--data", filepath.Join(assetOutPath, atlas.name+".json"),
 		"--sheet", filepath.Join(assetOutPath, atlas.name+".png"),
 		"--sheet-type", "packed",
+		"--list-tags",
+		"--tagname-format", "{title} {tag}",
+		"--merge-duplicates",
 	}
 	args = append(args, allFiles...)
 
@@ -179,13 +181,22 @@ type Frame struct {
 	Duration         int  `json:"duration"`
 }
 
+type FrameTag struct {
+	Name      string `json:"name"`
+	From      int    `json:"from"`
+	To        int    `json:"to"`
+	Direction string `json:"direction"`
+	Color     string `json:"color"`
+}
+
 type Meta struct {
-	App     string `json:"app"`
-	Version string `json:"version"`
-	Image   string `json:"image"`
-	Format  string `json:"format"`
-	Size    Size   `json:"size"`
-	Scale   string `json:"scale"`
+	App       string     `json:"app"`
+	Version   string     `json:"version"`
+	Image     string     `json:"image"`
+	Format    string     `json:"format"`
+	Size      Size       `json:"size"`
+	Scale     string     `json:"scale"`
+	FrameTags []FrameTag `json:"frameTags"`
 }
 
 type AsepriteJSON struct {
@@ -222,21 +233,19 @@ type Animation struct {
 	Frames []AnimationFrame
 }
 
-func groupFrames(frames map[string]Frame) []Animation {
-	// First pass: group frames by animation name
-	animGroups := make(map[string][]AnimationFrame)
+func groupFrames(frames map[string]Frame, tags []FrameTag) []Animation {
+	// First, organize frames by their prefix and index
+	prefixGroups := make(map[string]map[int]AnimationFrame)
 
 	for frameName, frame := range frames {
-		// Split name like "Fire 0.aseprite" into ["Fire", "0.aseprite"]
+		// Split like "Resources 1.aseprite" into prefix and number
 		parts := strings.Split(frameName, " ")
 		if len(parts) != 2 {
 			fmt.Fprintf(os.Stderr, "Warning: unexpected frame name format: %s\n", frameName)
 			continue
 		}
 
-		animName := parts[0]
-
-		// Parse the index from "0.aseprite"
+		prefix := parts[0]
 		indexStr := strings.TrimSuffix(parts[1], ".aseprite")
 		index, err := strconv.Atoi(indexStr)
 		if err != nil {
@@ -244,7 +253,13 @@ func groupFrames(frames map[string]Frame) []Animation {
 			continue
 		}
 
-		animFrame := AnimationFrame{
+		// Create prefix group if it doesn't exist
+		if _, exists := prefixGroups[prefix]; !exists {
+			prefixGroups[prefix] = make(map[int]AnimationFrame)
+		}
+
+		// Store frame in appropriate prefix group
+		prefixGroups[prefix][index] = AnimationFrame{
 			Name:     frameName,
 			X:        frame.Frame.X,
 			Y:        frame.Frame.Y,
@@ -253,28 +268,38 @@ func groupFrames(frames map[string]Frame) []Animation {
 			Duration: frame.Duration,
 			Index:    index,
 		}
-
-		animGroups[animName] = append(animGroups[animName], animFrame)
 	}
 
-	// Convert map to slice and sort frames within each animation
+	// Create animations based on tags
 	var animations []Animation
-	for name, frames := range animGroups {
-		// Sort frames by index
-		sort.Slice(frames, func(i, j int) bool {
-			return frames[i].Index < frames[j].Index
-		})
+	for _, tag := range tags {
+		// Extract prefix from tag name (e.g., "Resources" from "Resources Wood")
+		tagPrefix := strings.Split(tag.Name, " ")[0]
 
-		animations = append(animations, Animation{
-			Name:   name,
-			Frames: frames,
-		})
+		// Find corresponding frame group
+		frameGroup, exists := prefixGroups[tagPrefix]
+		if !exists {
+			fmt.Fprintf(os.Stderr, "Warning: no frames found for prefix: %s\n", tagPrefix)
+			continue
+		}
+
+		// Collect frames for this tag
+		frames := make([]AnimationFrame, 0, tag.To-tag.From+1)
+		for i := tag.From; i <= tag.To; i++ {
+			if frame, exists := frameGroup[i]; exists {
+				frames = append(frames, frame)
+			} else {
+				fmt.Fprintf(os.Stderr, "Warning: missing frame %d for animation %s\n", i, tag.Name)
+			}
+		}
+
+		if len(frames) > 0 {
+			animations = append(animations, Animation{
+				Name:   tag.Name,
+				Frames: frames,
+			})
+		}
 	}
-
-	// Sort animations by name for consistent output
-	sort.Slice(animations, func(i, j int) bool {
-		return animations[i].Name < animations[j].Name
-	})
 
 	return animations
 }
@@ -286,7 +311,7 @@ const headerTemplate = `// Generated code -- DO NOT EDIT
 
 `
 
-const frameArrayTemplate = `static const struct AnimationClip s_{{.Name | lower}}Clip = {
+const frameArrayTemplate = `static const struct AnimationClip s_{{.Name | sublower}}Clip = {
     .name = "{{.Name}}",
     .frameCount = {{len .Frames}},
     .frames = {
@@ -303,14 +328,14 @@ const libraryTemplate = `
 static struct AnimationLibrary g_{{$libName | lower}}AnimLibrary = {
     .clips = {
         {{- range .Clips}}
-        s_{{.Name | lower}}Clip,
+        s_{{.Name | sublower}}Clip,
         {{- end}}
     },
     .clipCount = {{len .Clips}}
 };
 
 {{- range .Clips}}
-#define ANIM_{{.Name | upper}} g_{{$libName | lower}}AnimLibrary.clips[{{.Index}}]
+#define ANIM_{{.Name | subupper}} g_{{$libName | lower}}AnimLibrary.clips[{{.Index}}]
 {{- end}}
 `
 
@@ -338,6 +363,16 @@ type TemplateData struct {
 var templateFuncs = template.FuncMap{
 	"lower": strings.ToLower,
 	"upper": strings.ToUpper,
+	"sublower": func(s string) string {
+		// Convert "Happy_Sheep Idle" to "happy_sheep_idle"
+		s = strings.ReplaceAll(s, " ", "_")
+		return strings.ToLower(s)
+	},
+	"subupper": func(s string) string {
+		// Convert "Happy_Sheep Idle" to "HAPPY_SHEEP_IDLE"
+		s = strings.ReplaceAll(s, " ", "_")
+		return strings.ToUpper(s)
+	},
 }
 
 func generateCode(atlasName string, animations []Animation) error {

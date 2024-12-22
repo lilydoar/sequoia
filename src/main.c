@@ -2,10 +2,11 @@
 #include "SDL3/SDL_scancode.h"
 #include <assert.h>
 #include <complex.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 #define SDL_MAIN_USE_CALLBACKS
 #include "SDL3/SDL_error.h"
@@ -33,7 +34,6 @@
 #include "stb_image.h"
 
 #include "atlas.h"
-#include "gen/atlas/effects.atlas.c"
 #include "gen/atlas/resources.atlas.c"
 
 #define UPDATES_PER_SECOND 60
@@ -754,7 +754,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           .size = {1.0, 1.0},
           .animation =
               {
-                  .animation = &ANIM_HAPPY_SHEEP,
+                  .animation = &ANIM_HAPPY_SHEEP_IDLE,
                   .mode = PLAYBACK_LOOP,
                   .finished = false,
                   .currentFrame = 0,
@@ -848,7 +848,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
           .size = {1.0, 1.0},
           .animation =
               {
-                  .animation = &ANIM_HAPPY_SHEEP,
+                  .animation = &ANIM_HAPPY_SHEEP_IDLE,
                   .mode = PLAYBACK_LOOP,
                   .finished = false,
                   .currentFrame = 0,
@@ -869,12 +869,27 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
       float dist = glm_vec2_norm(sheepMoveDir);
       if (dist <= context->game.sheepMaxDist) {
+        if (strcmp("Happy_Sheep Bouncing",
+                   context->game.sheep[j].animation.animation->name) == 0) {
+          context->game.sheep[j].animation.animation = &ANIM_HAPPY_SHEEP_IDLE;
+          context->game.sheep[j].animation.currentFrame = 0;
+          context->game.sheep[j].animation.frameTimeAccumulator = 0;
+        }
         continue;
       }
       if (dist > context->game.sheepSpeed) {
         glm_vec2_scale(sheepMoveDir,
                        context->game.sheepSpeed / glm_vec2_norm(sheepMoveDir),
                        sheepMoveDir);
+      }
+
+      bool moving = glm_vec2_norm(sheepMoveDir) > 0.01;
+      if (moving &&
+          strcmp("Happy_Sheep Idle",
+                 context->game.sheep[j].animation.animation->name) == 0) {
+        context->game.sheep[j].animation.animation = &ANIM_HAPPY_SHEEP_BOUNCING;
+        context->game.sheep[j].animation.currentFrame = 0;
+        context->game.sheep[j].animation.frameTimeAccumulator = 0;
       }
 
       context->game.sheep[j].position[0] += sheepMoveDir[0];
