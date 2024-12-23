@@ -243,9 +243,9 @@ struct Render {
 };
 
 struct Camera {
-  vec2 position;
-  vec2 size;
-  float scale;
+  vec2 position; // Camera center in world space
+  vec2 size;     // Viewport size in pixels
+  float scale;   // world units per pixel
 };
 void camera_model_view_proj(struct Camera camera, mat4 mvp) {
   float scaled_width = camera.size[0] * camera.scale / 2;
