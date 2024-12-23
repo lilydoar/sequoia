@@ -36,4 +36,4 @@ struct AnimationLibrary {
   size_t clipCount;
 };
 
-#endif /* ATLAS_H */
+#endif

@@ -1,3 +1,6 @@
+#ifndef SEQUOIA_MATH_H
+#define SEQUOIA_MATH_H
+
 #include "cglm/struct/vec2.h"
 #include <math.h>
 
@@ -404,3 +407,5 @@ vec2s path_get_steering(const BezierPath *path, vec2s current_pos, float t,
 
   return steering;
 }
+
+#endif

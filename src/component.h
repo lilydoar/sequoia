@@ -1,3 +1,6 @@
+#ifndef COMPONENT_H
+#define COMPONENT_H
+
 #include "atlas.h"
 #include "physics.h"
 #include <cglm/struct.h>
@@ -47,3 +50,5 @@ void SpriteAnimationStep(struct SpriteAnimation *self) {
     break;
   }
 }
+
+#endif

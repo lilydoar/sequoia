@@ -1,3 +1,6 @@
+#ifndef PHYSICS_H
+#define PHYSICS_H
+
 #include "cglm/struct/vec2.h"
 #include <stddef.h>
 
@@ -9,10 +12,9 @@ enum MassType {
 };
 typedef struct {
   enum MassType type;
+  float mass;
   union {
-    struct {
-      float mass; // Total mass
-    } uniform;
+    bool uniform;
     struct {
       vec2s centerOfMass; // Offset from position to center of mass
       float mass;         // Total mass
@@ -30,35 +32,6 @@ typedef struct {
     } discrete;
   };
 } Mass;
-
-typedef vec2s Pos;
-typedef vec2s Vel;
-typedef vec2s Acc;
-
-typedef struct {
-  Mass mass;
-  Pos pos;
-  Vel vel;
-  Acc acc;
-} Kinetic;
-
-enum ColliderType {
-  SHAPE_CIRCLE,
-  SHAPE_RECT,
-  SHAPE_POLYGON,
-  SHAPE_CAPSULE,
-  SHAPE_LINE
-};
-typedef struct {
-  struct {
-    vec2s center;
-    float radius;
-  } circle;
-  struct {
-    vec2s half_extents; // Half-width and half-height
-  } rect;
-
-} Collider;
 
 // Calculate center of mass for discrete points
 typedef struct {
@@ -85,16 +58,16 @@ CalcultateCOMRESULT calculateCenterOfMass(vec2s *massPoints, float *pointMasses,
 // Calculate moment of inertia for discrete points around center of mass
 float calculateMomentOfInertia(vec2s *massPoints, float *pointMasses,
                                size_t numPoints, vec2s com) {
-  float I = 0;
+  float inertia = 0;
 
   for (size_t i = 0; i < numPoints; i++) {
     float rx = massPoints[i].x - com.x;
     float ry = massPoints[i].y - com.y;
     float r_squared = rx * rx + ry * ry;
-    I += pointMasses[i] * r_squared;
+    inertia += pointMasses[i] * r_squared;
   }
 
-  return I;
+  return inertia;
 }
 
 // Common shapes with their moment of inertia calculations
@@ -116,7 +89,7 @@ float getMomentOfInertia_HollowCircle(float mass, float radius) {
 // Calculate moment of inertia for discrete points around axis
 float getMomentOfInertia_DiscretePoints(vec2s *points, float *masses,
                                         int numPoints, vec2s axis) {
-  float I = 0.0f;
+  float inertia = 0.0f;
 
   for (int i = 0; i < numPoints; i++) {
     // Distance squared from axis of rotation
@@ -125,16 +98,16 @@ float getMomentOfInertia_DiscretePoints(vec2s *points, float *masses,
     float r_squared = dx * dx + dy * dy;
 
     // I = Σ(m * r²)
-    I += masses[i] * r_squared;
+    inertia += masses[i] * r_squared;
   }
 
-  return I;
+  return inertia;
 }
 
 // Parallel axis theorem implementation
-float parallelAxisTheorem(float I_cm, float mass, float distance) {
-  // I = I_cm + m * d²
-  return I_cm + mass * distance * distance;
+float parallelAxisTheorem(float i_cm, float mass, float distance) {
+  // I = i_cm + m * d²
+  return i_cm + mass * distance * distance;
 }
 
 // Example: Angular acceleration calculation
@@ -150,23 +123,134 @@ float getRotationalKineticEnergy(float momentOfInertia, float angularVelocity) {
   return 0.5f * momentOfInertia * angularVelocity * angularVelocity;
 }
 
-/*// Example: Apply force to object based on mass distribution*/
-/*void applyForce(DiscreteDistributedObject *obj, vec2s force,*/
-/*                vec2s applicationPoint) {*/
-/*  vec2s com = calculateCenterOfMass(obj);*/
-/*  float I = calculateMomentOfInertia(obj, com);*/
-/**/
-/*  // Linear acceleration (F = ma)*/
-/*  vec2s acceleration = {force.x / obj->totalMass, force.y / obj->totalMass};*/
-/**/
-/*  // Angular acceleration (τ = Iα)*/
-/*  float rx = applicationPoint.x - com.x;*/
-/*  float ry = applicationPoint.y - com.y;*/
-/*  float torque = rx * force.y - ry * force.x;*/
-/*  float angularAcceleration = torque / I;*/
-/**/
-/*  // Implementation of motion updates would go here...*/
-/*}*/
+typedef struct {
+  Mass mass;
+  vec2s pos;
+  vec2s vel;
+  vec2s acc;
+} Kinematic;
+
+// Apply force to object based on its mass type
+void apply_force(Kinematic *obj, vec2s force) {
+  float inv_mass = 1.0f / obj->mass.mass;
+
+  // F = ma, therefore a = F/m
+  vec2s acceleration = glms_vec2_scale(force, inv_mass);
+  obj->acc = glms_vec2_add(obj->acc, acceleration);
+}
+
+vec2s calculate_drag_force(const Kinematic *obj, float drag_coeff) {
+  // Drag force = -k * v * |v|
+  float vel_mag = glms_vec2_norm(obj->vel);
+  return glms_vec2_scale(obj->vel, -drag_coeff * vel_mag);
+}
+
+vec2s calculate_friction_force(const Kinematic *obj, float friction_coeff) {
+  // Simple friction force opposite to velocity
+  if (glms_vec2_norm2(obj->vel) < 0.0001f)
+    return glms_vec2_zero();
+
+  vec2s friction_dir = glms_vec2_negate(glms_vec2_normalize(obj->vel));
+  float normal_force = 0.0f; // You'd calculate this based on contacts
+  normal_force = obj->mass.mass;
+
+  return glms_vec2_scale(friction_dir, friction_coeff * normal_force);
+}
+
+// Integration functions
+void integrate_velocity(Kinematic *obj, float dt) {
+  // v = v₀ + at
+  obj->vel = glms_vec2_add(obj->vel, glms_vec2_scale(obj->acc, dt));
+}
+
+void integrate_position(Kinematic *obj, float dt) {
+  // p = p₀ + vt + ½at²
+  obj->pos = glms_vec2_add(obj->pos, glms_vec2_scale(obj->vel, dt));
+  obj->pos = glms_vec2_add(obj->pos, glms_vec2_scale(obj->acc, 0.5f * dt * dt));
+}
+
+typedef struct {
+  Mass mass;
+  vec2s pos;
+  vec2s vel;
+  vec2s acc;
+  float ang;
+  float angVel;
+  float angAcc;
+} KinematicAngular;
+
+void apply_force_at_point(KinematicAngular *obj, vec2s force, vec2s point) {
+  // First apply linear force
+  float inv_mass = 1.0f / obj->mass.mass;
+  vec2s acceleration = glms_vec2_scale(force, inv_mass);
+  obj->acc = glms_vec2_add(obj->acc, acceleration);
+
+  // Handle rotational force if object has rotational mass
+  if (obj->mass.type == MASS_ROTATING) {
+    // Get position of center of mass in world space
+    vec2s com_pos = glms_vec2_add(obj->pos, obj->mass.rotating.centerOfMass);
+
+    // Vector from center of mass to force application point
+    vec2s r = glms_vec2_sub(point, com_pos);
+
+    // Calculate torque (2D cross product)
+    float torque = r.x * force.y - r.y * force.x;
+
+    // Convert torque to angular acceleration (τ = Iα)
+    float angular_acceleration = torque / obj->mass.rotating.momentOfInertia;
+
+    // Add to current angular acceleration
+    obj->angAcc += angular_acceleration;
+  }
+}
+
+float calculate_angular_drag(const KinematicAngular *obj,
+                             float angular_drag_coeff) {
+  return -angular_drag_coeff * obj->angVel * fabsf(obj->angVel);
+}
+
+float calculate_angular_friction(const KinematicAngular *obj,
+                                 float angular_friction_coeff) {
+  if (fabsf(obj->angVel) < 0.0001f) {
+    return 0.0f;
+  }
+
+  float moment = (obj->mass.type == MASS_ROTATING)
+                     ? obj->mass.rotating.momentOfInertia
+                     : 1.0f;
+
+  return -angular_friction_coeff * moment * (obj->angVel > 0.0f ? 1.0f : -1.0f);
+}
+
+void integrate_velocity_angular(KinematicAngular *obj, float dt) {
+  // Linear velocity integration
+  obj->vel = glms_vec2_add(obj->vel, glms_vec2_scale(obj->acc, dt));
+
+  // Angular velocity integration
+  obj->angVel += obj->angAcc * dt;
+}
+
+void integrate_angle(KinematicAngular *obj, float dt) {
+  obj->ang += obj->angVel * dt + 0.5f * obj->angAcc * dt * dt;
+}
+
+enum ColliderType {
+  SHAPE_CIRCLE,
+  SHAPE_RECT,
+  SHAPE_POLYGON,
+  SHAPE_CAPSULE,
+  SHAPE_LINE
+};
+typedef struct {
+  struct {
+    vec2s center;
+    float radius;
+  } circle;
+  struct {
+    vec2s half_extents; // Half-width and half-height
+  } rect;
+
+} Collider;
 
 bool check_circle_circle(vec2s p1, vec2s p2, float r1, float r2) {
   // Get vector between centers
@@ -207,5 +291,7 @@ vec2s closest_point_on_line(vec2s start, vec2s end, vec2s point) {
   t = fmax(0.0f, fmin(1.0f, t));
 
   // Calculate closest point
-  return (vec2s){start.x + t * line_vec.x, start.y + t * line_vec.y};
+  return (vec2s){{start.x + t * line_vec.x, start.y + t * line_vec.y}};
 }
+
+#endif
