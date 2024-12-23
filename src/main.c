@@ -279,8 +279,8 @@ struct GameTime {
 };
 
 struct Sheep {
-  Kinematic kinematics;
-  vec2 size;
+  Kinematic kinematic;
+  Collider collider;
   struct SpriteAnimation animation;
 };
 
@@ -289,7 +289,7 @@ struct Game {
   struct Camera camera;
   struct Sheep sheep[MAX_SHEEP];
   size_t sheepCount;
-  float sheepSpeed;
+  float sheepMaxSpeed;
   float sheepMaxDist;
   uint32_t spawnCooldown;
   float cameraSpeed;
@@ -706,14 +706,18 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
               .scale = 5.0,
           },
       .sheep = {{
-          .kinematics =
+          .kinematic =
               {
                   .mass = (Mass){.mass = 1.0, .uniform = true},
                   .pos = {{0.0, 0.0}},
                   .vel = {{0.0, 0.0}},
                   .acc = {{0.0, 0.0}},
               },
-          .size = {1.0, 1.0},
+          .collider =
+              {
+                  .shape = COLLIDER_SHAPE_CIRCLE,
+                  .circle = {.radius = 1.0},
+              },
           .animation =
               {
                   .animation = &ANIM_HAPPY_SHEEP_IDLE,
@@ -724,7 +728,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
               },
       }},
       .sheepCount = 1,
-      .sheepSpeed = 0.64 * SECONDS_PER_UPDATE,
+      .sheepMaxSpeed = 20.0 * SECONDS_PER_UPDATE,
       .sheepMaxDist = 1.2,
       .spawnCooldown = 0,
       .cameraSpeed = 3.6 * SECONDS_PER_UPDATE,
@@ -761,19 +765,19 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   // Game - Time
   context->game.time.accumulator += elapsed_ns;
-  int num_ticks = (int)(context->game.time.accumulator / DELTA_NS);
+  uint64_t num_ticks = (uint64_t)(context->game.time.accumulator / DELTA_NS);
   context->game.time.accumulator -= num_ticks * DELTA_NS;
   SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION,
                "Game time: current: %llu accumulated: %llu",
                context->game.time.current, context->game.time.accumulator);
 
   // Game - Update
-  for (size_t i = 0; i < num_ticks; i++) {
+  for (size_t tick = 0; tick < num_ticks; tick++) {
     context->game.time.current += 1;
 
     // Animation step
-    for (size_t j = 0; j < context->game.sheepCount; j++) {
-      SpriteAnimationStep(&context->game.sheep[j].animation);
+    for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
+      SpriteAnimationStep(&context->game.sheep[sheepIdx].animation);
     }
 
     // Camera movement
@@ -797,7 +801,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     context->game.camera.position[0] += moveDir[0];
     context->game.camera.position[1] += moveDir[1];
 
-    // Spawn a new sheep
+    // Spawn new sheep
     if (context->game.spawnCooldown > 0) {
       context->game.spawnCooldown -= 1;
     }
@@ -805,7 +809,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
         context->game.sheepCount < MAX_SHEEP &&
         context->game.spawnCooldown == 0) {
       struct Sheep newSheep = {
-          .kinematics =
+          .kinematic =
               {
                   .mass = (Mass){.mass = 1.0, .uniform = true},
                   .pos = {{context->game.camera.position[0],
@@ -813,7 +817,11 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
                   .vel = {{0.0, 0.0}},
                   .acc = {{0.0, 0.0}},
               },
-          .size = {1.0, 1.0},
+          .collider =
+              {
+                  .shape = COLLIDER_SHAPE_CIRCLE,
+                  .circle = {.radius = 1.0},
+              },
           .animation =
               {
                   .animation = &ANIM_HAPPY_SHEEP_IDLE,
@@ -830,61 +838,88 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     }
 
     // Sheep movement
-    for (size_t j = 0; j < context->game.sheepCount; j++) {
-      vec2 sheepMoveDir;
+    for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
+      vec2 diff;
       glm_vec2_sub(context->game.camera.position,
-                   context->game.sheep[j].kinematics.pos.raw, sheepMoveDir);
-
-      float dist = glm_vec2_norm(sheepMoveDir);
-      if (dist <= context->game.sheepMaxDist) {
-        if (strcmp("Happy_Sheep Bouncing",
-                   context->game.sheep[j].animation.animation->name) == 0) {
-          context->game.sheep[j].animation.animation = &ANIM_HAPPY_SHEEP_IDLE;
-          context->game.sheep[j].animation.currentFrame = 0;
-          context->game.sheep[j].animation.frameTimeAccumulator = 0;
-        }
-        continue;
-      }
-      if (dist > context->game.sheepSpeed) {
-        glm_vec2_scale(sheepMoveDir,
-                       context->game.sheepSpeed / glm_vec2_norm(sheepMoveDir),
-                       sheepMoveDir);
-      }
-
-      bool moving = glm_vec2_norm(sheepMoveDir) > 0.01;
-      if (moving &&
-          strcmp("Happy_Sheep Idle",
-                 context->game.sheep[j].animation.animation->name) == 0) {
-        context->game.sheep[j].animation.animation = &ANIM_HAPPY_SHEEP_BOUNCING;
-        context->game.sheep[j].animation.currentFrame = 0;
-        context->game.sheep[j].animation.frameTimeAccumulator = 0;
-      }
-
-      context->game.sheep[j].kinematics.pos.raw[0] += sheepMoveDir[0];
-      context->game.sheep[j].kinematics.pos.raw[1] += sheepMoveDir[1];
+                   context->game.sheep[sheepIdx].kinematic.pos.raw, diff);
+      float dist = glm_vec2_norm2(diff);
+      /*if (dist > context->game.sheepMaxDist) {*/
+      context->game.sheep[sheepIdx].kinematic.vel.raw[0] = diff[0];
+      context->game.sheep[sheepIdx].kinematic.vel.raw[1] = diff[1];
+      /*}*/
     }
+
     // Sheep collision
-    for (size_t j = 0; j < context->game.sheepCount; j++) {
-      vec2 impulse = {0.0, 0.0};
-      for (size_t k = 0; k < context->game.sheepCount; k++) {
-        if (j == k) {
+    for (size_t sheepIdx0 = 0; sheepIdx0 < context->game.sheepCount;
+         sheepIdx0++) {
+      for (size_t sheepIdx1 = sheepIdx0 + 1;
+           sheepIdx1 < context->game.sheepCount; sheepIdx1++) {
+        vec2 diff;
+        glm_vec2_sub(context->game.sheep[sheepIdx0].kinematic.pos.raw,
+                     context->game.sheep[sheepIdx1].kinematic.pos.raw, diff);
+
+        float dist = glm_vec2_norm(diff);
+        float overlap = context->game.sheep[sheepIdx0].collider.circle.radius +
+                        context->game.sheep[sheepIdx1].collider.circle.radius -
+                        dist;
+        if (overlap <= 0) {
           continue;
         }
 
-        vec2 diff;
-        glm_vec2_sub(context->game.sheep[j].kinematics.pos.raw,
-                     context->game.sheep[k].kinematics.pos.raw, diff);
-        float dist = glm_vec2_norm(diff);
-        if (dist < 0.25) {
-          float overlap = (0.25 + 0.25) - dist;
-          glm_vec2_scale(diff, overlap, diff);
+        glm_vec2_normalize(diff);
+        glm_vec2_scale(diff, overlap, diff);
+        apply_force(&context->game.sheep[sheepIdx0].kinematic,
+                    (vec2s){{diff[0], diff[1]}});
 
-          impulse[0] += diff[0];
-          impulse[1] += diff[1];
+        glm_vec2_negate(diff);
+        apply_force(&context->game.sheep[sheepIdx1].kinematic,
+                    (vec2s){{diff[0], diff[1]}});
+      }
+    }
+
+    for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
+      integrate_velocity(&context->game.sheep[sheepIdx].kinematic,
+                         SECONDS_PER_UPDATE);
+
+      // Cap Sheep speed
+      float speed =
+          glm_vec2_norm2(context->game.sheep[sheepIdx].kinematic.vel.raw);
+      if (speed > context->game.sheepMaxSpeed) {
+        glm_vec2_norm(context->game.sheep[sheepIdx].kinematic.vel.raw);
+        glm_vec2_scale(context->game.sheep[sheepIdx].kinematic.vel.raw,
+                       context->game.sheepMaxSpeed,
+                       context->game.sheep[sheepIdx].kinematic.vel.raw);
+      }
+
+      integrate_position(&context->game.sheep[sheepIdx].kinematic,
+                         SECONDS_PER_UPDATE);
+
+      speed = glm_vec2_norm2(context->game.sheep[sheepIdx].kinematic.vel.raw);
+      if (speed > 0.1) {
+        // Switch to bouncing state
+        if (strcmp("Happy_Sheep Idle",
+                   context->game.sheep[sheepIdx].animation.animation->name) ==
+            0) {
+          context->game.sheep[sheepIdx].animation.animation =
+              &ANIM_HAPPY_SHEEP_BOUNCING;
+          context->game.sheep[sheepIdx].animation.currentFrame = 0;
+          context->game.sheep[sheepIdx].animation.frameTimeAccumulator = 0;
+        }
+      } else {
+        // Switch to the idle state
+        if (strcmp("Happy_Sheep Bouncing",
+                   context->game.sheep[sheepIdx].animation.animation->name) ==
+            0) {
+          context->game.sheep[sheepIdx].animation.animation =
+              &ANIM_HAPPY_SHEEP_IDLE;
+          context->game.sheep[sheepIdx].animation.currentFrame = 0;
+          context->game.sheep[sheepIdx].animation.frameTimeAccumulator = 0;
         }
       }
-      context->game.sheep[j].kinematics.pos.raw[0] += impulse[0];
-      context->game.sheep[j].kinematics.pos.raw[1] += impulse[1];
+
+      // Reset for next frame
+      context->game.sheep[sheepIdx].kinematic.vel = glms_vec2_zero();
+      context->game.sheep[sheepIdx].kinematic.acc = glms_vec2_zero();
     }
   }
 
@@ -911,9 +946,15 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     vec2 uvSize = {uv3[0] - uv0[0], uv1[1] - uv0[1]};
 
     if (!QuadBufferAppend(&quadBuf,
-                          (vec2){context->game.sheep[i].kinematics.pos.raw[0],
-                                 context->game.sheep[i].kinematics.pos.raw[1]},
-                          context->game.sheep[i].size, uvPos, uvSize)) {
+                          (vec2){
+                              context->game.sheep[i].kinematic.pos.raw[0],
+                              context->game.sheep[i].kinematic.pos.raw[1],
+                          },
+                          (vec2){
+                              context->game.sheep[i].collider.circle.radius,
+                              context->game.sheep[i].collider.circle.radius,
+                          },
+                          uvPos, uvSize)) {
       return SDL_APP_FAILURE;
     }
   }

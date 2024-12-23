@@ -234,22 +234,18 @@ void integrate_angle(KinematicAngular *obj, float dt) {
   obj->ang += obj->angVel * dt + 0.5f * obj->angAcc * dt * dt;
 }
 
-enum ColliderType {
-  SHAPE_CIRCLE,
-  SHAPE_RECT,
-  SHAPE_POLYGON,
-  SHAPE_CAPSULE,
-  SHAPE_LINE
+enum ColliderShape {
+  COLLIDER_SHAPE_CIRCLE,
+  COLLIDER_SHAPE_AABB,
 };
 typedef struct {
+  enum ColliderShape shape;
   struct {
-    vec2s center;
     float radius;
   } circle;
   struct {
-    vec2s half_extents; // Half-width and half-height
-  } rect;
-
+    vec2s half_extents;
+  } AABB;
 } Collider;
 
 bool check_circle_circle(vec2s p1, vec2s p2, float r1, float r2) {
