@@ -5,6 +5,10 @@
 #include "physics.h"
 #include <cglm/struct.h>
 
+/*typedef struct {} Component_SpriteStatic;*/
+/*typedef struct {} Component_SpriteAnimation;*/
+/*typedef struct {} Component_SpriteMarkov;*/
+
 enum PlaybackMode {
   PLAYBACK_LOOP,
   PLAYBACK_ONCE,

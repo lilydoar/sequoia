@@ -1,7 +1,7 @@
 # Compiler settings
 CC = clang
 CFLAGS = -Wall -Wextra -Wpedantic
-INC_FLAGS = -Iexternal/cglm/include -Iexternal/stb -Isrc/
+INC_FLAGS = -Iexternal/cglm/include -Iexternal/stb -Isrc/ -Iexternal/json-c
 LIB_FLAGS = external/cglm/build/libcglm.a `pkg-config --cflags --libs sdl3`
 
 # File names
