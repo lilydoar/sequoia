@@ -1,5 +1,5 @@
 # Compiler settings
-CC = clang
+C_COMPILER = clang
 CFLAGS = -Wall -Wextra -Wpedantic
 INC_FLAGS = -Iexternal/cglm/include -Iexternal/stb -Isrc/ -Iexternal/json-c
 LIB_FLAGS = external/cglm/build/libcglm.a `pkg-config --cflags --libs sdl3`
@@ -14,8 +14,17 @@ $(shell mkdir -p build/bin)
 
 all: $(TARGET)
 
+# Build target
 $(TARGET): $(SOURCES)
-	$(CC) $(CFLAGS) $(INC_FLAGS) $(LIB_FLAGS) $(PKGCONFIG) $(SOURCES) -o $(BUILD)/$(TARGET)
+	$(C_COMPILER) $(CFLAGS) $(INC_FLAGS) $(LIB_FLAGS) $(PKGCONFIG) $(SOURCES) -o $(BUILD)/$(TARGET)
+
+# Check target to test initialization
+check: $(TARGET)
+	$(BUILD)/$(TARGET) & \
+	APP_PID=$$!; \
+	sleep 1; \
+	kill -TERM $$APP_PID; \
+	wait $$APP_PID || exit $$?
 
 # Clean built files
 clean:
