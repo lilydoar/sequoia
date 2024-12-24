@@ -743,7 +743,6 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   context->input.state = SDL_GetKeyboardState(NULL);
 
-
   // App - Time
   context->time.currNs = SDL_GetTicksNS();
   uint64_t elapsed_ns = context->time.currNs - context->time.prevNs;
@@ -765,10 +764,12 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     context->game.time.current += 1;
 
     // Animation step
-    /*for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++)
-     * {*/
-    /*  SpriteAnimationStep(&context->game.sheep[sheepIdx].animation);*/
-    /*}*/
+    for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
+      Sheep *sheep = &context->game.sheep[sheepIdx];
+      size_t state = get_current_state_id(sheep->model);
+      SpriteDynamic *anim = SpriteMap_GetSprite(sheep->animations, state);
+      SpritePlayback_Step(&sheep->playback, *anim);
+    }
 
     // Camera movement
     vec2 moveDir = {0.0, 0.0};
@@ -910,13 +911,15 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   mat4 mvp;
   camera_model_view_proj(context->game.camera, mvp);
 
+
   // Draw Sheep
-  for (size_t i = 0; i < context->game.sheepCount; i++) {
-    SpriteDynamic *anim =
-        SpriteMap_GetSprite(context->game.sheep[i].animations,
-                            get_current_state_id(context->game.sheep[i].model));
-    struct AtlasRect rect =
-        SpritePlayback_CurrentRect(context->game.sheep[i].playback, *anim);
+  for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
+    Sheep sheep = context->game.sheep[sheepIdx];
+
+    size_t state = get_current_state_id(sheep.model);
+    SpriteDynamic *anim = SpriteMap_GetSprite(sheep.animations, state);
+    struct AtlasRect rect = SpritePlayback_CurrentRect(sheep.playback, *anim);
+
 
     vec2 uv0;
     vec2 uv1;
@@ -932,19 +935,21 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     vec2 uvPos = {uv0[0], uv0[1]};
     vec2 uvSize = {uv3[0] - uv0[0], uv1[1] - uv0[1]};
 
-    if (!QuadBufferAppend(&quadBuf,
-                          (vec2){
-                              context->game.sheep[i].kinematic.pos.raw[0],
-                              context->game.sheep[i].kinematic.pos.raw[1],
-                          },
-                          (vec2){
-                              context->game.sheep[i].collider.circle.radius,
-                              context->game.sheep[i].collider.circle.radius,
-                          },
-                          uvPos, uvSize)) {
+    if (!QuadBufferAppend(
+            &quadBuf,
+            (vec2){
+                context->game.sheep[sheepIdx].kinematic.pos.raw[0],
+                context->game.sheep[sheepIdx].kinematic.pos.raw[1],
+            },
+            (vec2){
+                context->game.sheep[sheepIdx].collider.circle.radius,
+                context->game.sheep[sheepIdx].collider.circle.radius,
+            },
+            uvPos, uvSize)) {
       return SDL_APP_FAILURE;
     }
   }
+
 
   // Move dynamic data --> GPU
   if (quadBuf.count > 0) {
