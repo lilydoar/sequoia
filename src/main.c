@@ -37,7 +37,8 @@
 #include "physics.h"
 #include "component.h"
 #include "entity.h"
-#include "gen/atlas/resources.atlas.c"
+#include "markov.h"
+#include "gen/atlas/resources.atlas.h"
 
 #define UPDATES_PER_SECOND 60
 #define SECONDS_PER_UPDATE (1.0 / UPDATES_PER_SECOND)
@@ -288,7 +289,7 @@ struct GameTime {
 struct Game {
   struct GameTime time;
   struct Camera camera;
-  struct Sheep sheep[MAX_SHEEP];
+  Sheep sheep[MAX_SHEEP];
   size_t sheepCount;
   float sheepMaxSpeed;
   float sheepMaxDist;
@@ -698,6 +699,10 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
 
   // Game - Init
   Sheep sheep = Sheep_Init();
+  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "state count: %zu\n",
+               sheep.model->state_count);
+  SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "current state: %zu\n",
+               sheep.model->current_state->id);
 
   struct Game game = {
       .time = {.current = 0},
@@ -709,7 +714,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                        1.0},
               .scale = 5.0,
           },
-      .sheep = sheep,
+      .sheep = {sheep},
       .sheepCount = 1,
       .sheepMaxSpeed = 20.0 * SECONDS_PER_UPDATE,
       .sheepMaxDist = 1.2,
@@ -738,6 +743,7 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   context->input.state = SDL_GetKeyboardState(NULL);
 
+
   // App - Time
   context->time.currNs = SDL_GetTicksNS();
   uint64_t elapsed_ns = context->time.currNs - context->time.prevNs;
@@ -759,9 +765,10 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     context->game.time.current += 1;
 
     // Animation step
-    for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
-      SpriteAnimationStep(&context->game.sheep[sheepIdx].animation);
-    }
+    /*for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++)
+     * {*/
+    /*  SpriteAnimationStep(&context->game.sheep[sheepIdx].animation);*/
+    /*}*/
 
     // Camera movement
     vec2 moveDir = {0.0, 0.0};
@@ -784,103 +791,120 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     context->game.camera.position[0] += moveDir[0];
     context->game.camera.position[1] += moveDir[1];
 
-    // Spawn new sheep
-    if (context->game.spawnCooldown > 0) {
-      context->game.spawnCooldown -= 1;
-    }
-    if (context->input.state[SDL_SCANCODE_SPACE] &&
-        context->game.sheepCount < MAX_SHEEP &&
-        context->game.spawnCooldown == 0) {
-
-      context->game.sheep[context->game.sheepCount] = Sheep_Init();
-      context->game.sheepCount += 1;
-      context->game.spawnCooldown = 20;
-    }
-
-    // Sheep movement
-    for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
-      vec2 diff;
-      glm_vec2_sub(context->game.camera.position,
-                   context->game.sheep[sheepIdx].kinematic.pos.raw, diff);
-      float dist = glm_vec2_norm2(diff);
-      /*if (dist > context->game.sheepMaxDist) {*/
-      context->game.sheep[sheepIdx].kinematic.vel.raw[0] = diff[0];
-      context->game.sheep[sheepIdx].kinematic.vel.raw[1] = diff[1];
-      /*}*/
-    }
-
+    /*// Spawn new sheep*/
+    /*if (context->game.spawnCooldown > 0) {*/
+    /*  context->game.spawnCooldown -= 1;*/
+    /*}*/
+    /*if (context->input.state[SDL_SCANCODE_SPACE] &&*/
+    /*    context->game.sheepCount < MAX_SHEEP &&*/
+    /*    context->game.spawnCooldown == 0) {*/
+    /**/
+    /*  context->game.sheep[context->game.sheepCount] = Sheep_Init();*/
+    /*  context->game.sheepCount += 1;*/
+    /*  context->game.spawnCooldown = 20;*/
+    /*}*/
+    /**/
+    /*// Sheep movement*/
+    /*for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++)
+     * {*/
+    /*  vec2 diff;*/
+    /*  glm_vec2_sub(context->game.camera.position,*/
+    /*               context->game.sheep[sheepIdx].kinematic.pos.raw, diff);*/
+    /*  float dist = glm_vec2_norm2(diff);*/
+    /*  /*if (dist > context->game.sheepMaxDist) {*/
+    /*  context->game.sheep[sheepIdx].kinematic.vel.raw[0] = diff[0];*/
+    /*  context->game.sheep[sheepIdx].kinematic.vel.raw[1] = diff[1];*/
+    /*  /*}*/
+    /*}*/
+    /**/
     // Sheep collision
-    for (size_t sheepIdx0 = 0; sheepIdx0 < context->game.sheepCount;
-         sheepIdx0++) {
-      for (size_t sheepIdx1 = sheepIdx0 + 1;
-           sheepIdx1 < context->game.sheepCount; sheepIdx1++) {
-        vec2 diff;
-        glm_vec2_sub(context->game.sheep[sheepIdx0].kinematic.pos.raw,
-                     context->game.sheep[sheepIdx1].kinematic.pos.raw, diff);
+    /*for (size_t sheepIdx0 = 0; sheepIdx0 < context->game.sheepCount;*/
+    /*     sheepIdx0++) {*/
+    /*  for (size_t sheepIdx1 = sheepIdx0 + 1;*/
+    /*       sheepIdx1 < context->game.sheepCount; sheepIdx1++) {*/
+    /*    vec2 diff;*/
+    /*    glm_vec2_sub(context->game.sheep[sheepIdx0].kinematic.pos.raw,*/
+    /*                 context->game.sheep[sheepIdx1].kinematic.pos.raw,
+     * diff);*/
+    /**/
+    /*    float dist = glm_vec2_norm(diff);*/
+    /*    float overlap = context->game.sheep[sheepIdx0].collider.circle.radius
+     * +*/
+    /*                    context->game.sheep[sheepIdx1].collider.circle.radius
+     * -*/
+    /*                    dist;*/
+    /*    if (overlap <= 0) {*/
+    /*      continue;*/
+    /*    }*/
+    /**/
+    /*    glm_vec2_normalize(diff);*/
+    /*    glm_vec2_scale(diff, overlap, diff);*/
+    /*    apply_force(&context->game.sheep[sheepIdx0].kinematic,*/
+    /*                (vec2s){{diff[0], diff[1]}});*/
+    /**/
+    /*    glm_vec2_negate(diff);*/
+    /*    apply_force(&context->game.sheep[sheepIdx1].kinematic,*/
+    /*                (vec2s){{diff[0], diff[1]}});*/
+    /*  }*/
+    /*}*/
+    /**/
+    /*for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++)
+     * {*/
+    /*  integrate_velocity(&context->game.sheep[sheepIdx].kinematic,*/
+    /*                     SECONDS_PER_UPDATE);*/
+    /**/
+    // Cap Sheep speed
+    /*float speed =*/
+    /*    glm_vec2_norm2(context->game.sheep[sheepIdx].kinematic.vel.raw);*/
+    /*if (speed > context->game.sheepMaxSpeed) {*/
+    /*  glm_vec2_norm(context->game.sheep[sheepIdx].kinematic.vel.raw);*/
+    /*  glm_vec2_scale(context->game.sheep[sheepIdx].kinematic.vel.raw,*/
+    /*                 context->game.sheepMaxSpeed,*/
+    /*                 context->game.sheep[sheepIdx].kinematic.vel.raw);*/
+    /*}*/
+    /**/
+    /*integrate_position(&context->game.sheep[sheepIdx].kinematic,*/
+    /*                   SECONDS_PER_UPDATE);*/
+    /**/
+    /*if (get_state(context->game.sheep[sheepIdx].model->current_state,*/
+    /*              SHEEP_STATE_ID_IDLE)) {*/
+    /*} else if
+     * (get_state(context->game.sheep[sheepIdx].model->current_state,*/
+    /*                     SHEEP_STATE_ID_FOLLOW_POINT)) {*/
+    /*}*/
+    /**/
+    /*switch (context->game.sheep[sheepIdx].model.currentState.id) {}*/
 
-        float dist = glm_vec2_norm(diff);
-        float overlap = context->game.sheep[sheepIdx0].collider.circle.radius +
-                        context->game.sheep[sheepIdx1].collider.circle.radius -
-                        dist;
-        if (overlap <= 0) {
-          continue;
-        }
-
-        glm_vec2_normalize(diff);
-        glm_vec2_scale(diff, overlap, diff);
-        apply_force(&context->game.sheep[sheepIdx0].kinematic,
-                    (vec2s){{diff[0], diff[1]}});
-
-        glm_vec2_negate(diff);
-        apply_force(&context->game.sheep[sheepIdx1].kinematic,
-                    (vec2s){{diff[0], diff[1]}});
-      }
-    }
-
-    for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
-      integrate_velocity(&context->game.sheep[sheepIdx].kinematic,
-                         SECONDS_PER_UPDATE);
-
-      // Cap Sheep speed
-      float speed =
-          glm_vec2_norm2(context->game.sheep[sheepIdx].kinematic.vel.raw);
-      if (speed > context->game.sheepMaxSpeed) {
-        glm_vec2_norm(context->game.sheep[sheepIdx].kinematic.vel.raw);
-        glm_vec2_scale(context->game.sheep[sheepIdx].kinematic.vel.raw,
-                       context->game.sheepMaxSpeed,
-                       context->game.sheep[sheepIdx].kinematic.vel.raw);
-      }
-
-      integrate_position(&context->game.sheep[sheepIdx].kinematic,
-                         SECONDS_PER_UPDATE);
-
-      speed = glm_vec2_norm2(context->game.sheep[sheepIdx].kinematic.vel.raw);
-      if (speed > 0.1) {
-        // Switch to bouncing state
-        if (strcmp("Happy_Sheep Idle",
-                   context->game.sheep[sheepIdx].animation.animation->name) ==
-            0) {
-          context->game.sheep[sheepIdx].animation.animation =
-              &ANIM_HAPPY_SHEEP_BOUNCING;
-          context->game.sheep[sheepIdx].animation.currentFrame = 0;
-          context->game.sheep[sheepIdx].animation.frameTimeAccumulator = 0;
-        }
-      } else {
-        // Switch to the idle state
-        if (strcmp("Happy_Sheep Bouncing",
-                   context->game.sheep[sheepIdx].animation.animation->name) ==
-            0) {
-          context->game.sheep[sheepIdx].animation.animation =
-              &ANIM_HAPPY_SHEEP_IDLE;
-          context->game.sheep[sheepIdx].animation.currentFrame = 0;
-          context->game.sheep[sheepIdx].animation.frameTimeAccumulator = 0;
-        }
-      }
-
-      // Reset for next frame
-      context->game.sheep[sheepIdx].kinematic.vel = glms_vec2_zero();
-      context->game.sheep[sheepIdx].kinematic.acc = glms_vec2_zero();
-    }
+    /*speed =
+     * glm_vec2_norm2(context->game.sheep[sheepIdx].kinematic.vel.raw);*/
+    /*if (speed > 0.1) {*/
+    /*  // Switch to bouncing state*/
+    /*  if (strcmp("Happy_Sheep Idle",*/
+    /*             context->game.sheep[sheepIdx].animation.animation->name)
+     * ==*/
+    /*      0) {*/
+    /*    context->game.sheep[sheepIdx].animation.animation =*/
+    /*        &ANIM_HAPPY_SHEEP_BOUNCING;*/
+    /*    context->game.sheep[sheepIdx].animation.currentFrame = 0;*/
+    /*    context->game.sheep[sheepIdx].animation.frameTimeAccumulator = 0;*/
+    /*  }*/
+    /*} else {*/
+    /*  // Switch to the idle state*/
+    /*  if (strcmp("Happy_Sheep Bouncing",*/
+    /*             context->game.sheep[sheepIdx].animation.animation->name)
+     * ==*/
+    /*      0) {*/
+    /*    context->game.sheep[sheepIdx].animation.animation =*/
+    /*        &ANIM_HAPPY_SHEEP_IDLE;*/
+    /*    context->game.sheep[sheepIdx].animation.currentFrame = 0;*/
+    /*    context->game.sheep[sheepIdx].animation.frameTimeAccumulator = 0;*/
+    /*  }*/
+    /*}*/
+    /**/
+    // Reset for next frame
+    /*context->game.sheep[sheepIdx].kinematic.vel = glms_vec2_zero();*/
+    /*context->game.sheep[sheepIdx].kinematic.acc = glms_vec2_zero();*/
+    /*}*/
   }
 
   mat4 mvp;
@@ -888,8 +912,11 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   // Draw Sheep
   for (size_t i = 0; i < context->game.sheepCount; i++) {
+    SpriteDynamic *anim =
+        SpriteMap_GetSprite(context->game.sheep[i].animations,
+                            get_current_state_id(context->game.sheep[i].model));
     struct AtlasRect rect =
-        SpriteAnimationCurrentRect(context->game.sheep[i].animation);
+        SpritePlayback_CurrentRect(context->game.sheep[i].playback, *anim);
 
     vec2 uv0;
     vec2 uv1;

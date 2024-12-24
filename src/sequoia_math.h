@@ -49,7 +49,7 @@ float lerp_angle(float start_angle, float end_angle, float t) {
 vec2s rotate_vector(vec2s v, float angle) {
   float c = cosf(angle);
   float s = sinf(angle);
-  return (vec2s){v.x * c - v.y * s, v.x * s + v.y * c};
+  return (vec2s){{v.x * c - v.y * s, v.x * s + v.y * c}};
 }
 
 //
@@ -63,7 +63,7 @@ float lerp(float start, float end, float t) {
 
 // Vector linear interpolation
 vec2s vec2s_lerp(vec2s start, vec2s end, float t) {
-  return (vec2s){lerp(start.x, end.x, t), lerp(start.y, end.y, t)};
+  return (vec2s){{lerp(start.x, end.x, t), lerp(start.y, end.y, t)}};
 }
 
 // Smooth step (cubic hermite interpolation)
@@ -219,7 +219,7 @@ vec2s get_cubic_bezier_tangent(vec2s p0, vec2s p1, vec2s p2, vec2s p3,
                                float t) {
   float t1 = 1.0f - t;
   float t1_2 = 2.0f * t1;
-  float t_2 = 2.0f * t;
+  /*float t_2 = 2.0f * t;*/
 
   // Derivative of cubic Bézier
   vec2s tangent = {{3.0f * (t1 * t1 * (p1.x - p0.x) + t1_2 * t * (p2.x - p1.x) +

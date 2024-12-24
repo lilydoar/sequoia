@@ -2,9 +2,8 @@
 #define COMPONENT_H
 
 #include "atlas.h"
-#include "markov.h"
-#include "physics.h"
 
+#include <assert.h>
 #include <cglm/struct.h>
 #include <stdint.h>
 
@@ -29,52 +28,55 @@ typedef struct {
   uint32_t currentFrame;
   uint32_t frameTimeAccumulator;
 } SpritePlayback;
+struct AtlasRect SpritePlayback_CurrentRect(SpritePlayback playback,
+                                            SpriteDynamic anim) {
+  assert(anim.animation->frames);
+  assert(playback.currentFrame < anim.animation->frameCount);
+  return anim.animation->frames[playback.currentFrame].rect;
+}
+void SpritePlayback_Step(SpritePlayback *playback, SpriteDynamic anim) {
+  if (playback->finished) {
+    return;
+  }
+
+  playback->frameTimeAccumulator += 1;
+
+  struct AnimationFrame currentFrame =
+      anim.animation->frames[playback->currentFrame];
+  if (playback->frameTimeAccumulator < currentFrame.durationTicks) {
+    return;
+  }
+
+  playback->frameTimeAccumulator = 0;
+  playback->currentFrame++;
+  if (playback->currentFrame < anim.animation->frameCount) {
+    return;
+  }
+
+  switch (anim.mode) {
+  case PLAYBACK_ONCE:
+    // Stay on the last frame
+    playback->currentFrame = anim.animation->frameCount - 1;
+    playback->finished = true;
+    break;
+  case PLAYBACK_FORWARD:
+    playback->currentFrame = 0;
+    break;
+  default:
+    // TODO
+    assert(false);
+    break;
+  }
+}
 
 typedef struct {
   SpriteDynamic *sprites;
   size_t statesCount;
-} SpriteMarkovMap;
-
-struct SpriteAnimation {
-  struct AnimationClip *animation;
-  size_t currentFrame;
-  uint32_t frameTimeAccumulator;
-  enum PlaybackMode mode;
-  bool finished;
-};
-struct AtlasRect SpriteAnimationCurrentRect(struct SpriteAnimation self) {
-  return self.animation->frames[self.currentFrame].rect;
-}
-void SpriteAnimationStep(struct SpriteAnimation *self) {
-  if (self->finished) {
-    return;
-  }
-
-  self->frameTimeAccumulator += 1;
-
-  struct AnimationFrame currentFrame =
-      self->animation->frames[self->currentFrame];
-  if (self->frameTimeAccumulator < currentFrame.durationTicks) {
-    return;
-  }
-
-  self->frameTimeAccumulator = 0;
-  self->currentFrame++;
-  if (self->currentFrame < self->animation->frameCount) {
-    return;
-  }
-
-  switch (self->mode) {
-  case PLAYBACK_LOOP:
-    self->currentFrame = 0;
-    break;
-
-  case PLAYBACK_ONCE:
-    // Stay on the last frame
-    self->currentFrame = self->animation->frameCount - 1;
-    self->finished = true;
-    break;
-  }
+} SpriteMap;
+SpriteDynamic *SpriteMap_GetSprite(SpriteMap map, size_t id) {
+  assert(id < map.statesCount);
+  assert(map.sprites);
+  return &map.sprites[id];
 }
 
 #endif
