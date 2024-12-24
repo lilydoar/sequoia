@@ -44,7 +44,7 @@ Sheep Sheep_Init(void) {
   add_state(sheep.model, SHEEP_STATE_ID_FOLLOW_PATH, &(SHEEP_FOLLOW_PATH){0},
             sizeof(BezierPath));
 
-  set_initial_state(sheep.model, SHEEP_STATE_ID_IDLE);
+  set_state(sheep.model, SHEEP_STATE_ID_IDLE);
 
   sheep.animations = (SpriteMap){0};
   sheep.animations.statesCount = 3;

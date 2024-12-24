@@ -120,7 +120,7 @@ State *add_state(MarkovModel *model, size_t id, const void *data,
   return state;
 }
 
-void set_initial_state(MarkovModel *model, size_t idx) {
+void set_state(MarkovModel *model, size_t idx) {
   assert(model);
   assert(idx < model->state_count);
   model->current_state = &model->states[idx];
