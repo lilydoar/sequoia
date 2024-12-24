@@ -307,6 +307,9 @@ func groupFrames(frames map[string]Frame, tags []FrameTag) []Animation {
 const headerTemplate = `// Generated code -- DO NOT EDIT
 // Generated from {{.InputFile}}
 
+#ifndef {{.LibraryName | subupper}}_H
+#define {{.LibraryName | subupper}}_H
+
 #include "atlas.h"
 
 `
@@ -338,6 +341,9 @@ static struct AnimationLibrary g_{{$libName | lower}}AnimLibrary = {
 #define ANIM_{{.Name | subupper}} g_{{$libName | lower}}AnimLibrary.clips[{{.Index}}]
 {{- end}}
 `
+
+const footerTemplate = `
+#endif`
 
 type TemplateFrame struct {
 	Name     string
@@ -381,9 +387,10 @@ func generateCode(atlasName string, animations []Animation) error {
 	}
 
 	// Create templates
-	headerTmpl := template.Must(template.New("header").Parse(headerTemplate))
+	headerTmpl := template.Must(template.New("header").Funcs(templateFuncs).Parse(headerTemplate))
 	frameTmpl := template.Must(template.New("frame").Funcs(templateFuncs).Parse(frameArrayTemplate))
 	libraryTmpl := template.Must(template.New("library").Funcs(templateFuncs).Parse(libraryTemplate))
+	footerTmpl := template.Must(template.New("footer").Funcs(templateFuncs).Parse(footerTemplate))
 
 	var buf strings.Builder
 
@@ -432,8 +439,13 @@ func generateCode(atlasName string, animations []Animation) error {
 		return fmt.Errorf("library template error: %w", err)
 	}
 
+	// Generate footer
+	if err := footerTmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("footer template error: %w", err)
+	}
+
 	// Create output directory
-	outFile := filepath.Join(codeOutPath, atlasName+".atlas.c")
+	outFile := filepath.Join(codeOutPath, atlasName+".atlas.h")
 
 	dir := filepath.Dir(outFile)
 	if err := os.MkdirAll(dir, 0755); err != nil {

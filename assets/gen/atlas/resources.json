@@ -1,29 +1,21 @@
 { "frames": {
-   "M_Spawn.png": {
-    "frame": { "x": 1792, "y": 0, "w": 896, "h": 128 },
+   "G_Spawn.png": {
+    "frame": { "x": 0, "y": 0, "w": 896, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 896, "h": 128 },
     "sourceSize": { "w": 896, "h": 128 },
     "duration": 100
    },
-   "W_Idle_(NoShadow).png": {
-    "frame": { "x": 768, "y": 320, "w": 128, "h": 128 },
+   "W_Spawn.png": {
+    "frame": { "x": 896, "y": 0, "w": 896, "h": 128 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 896, "h": 128 },
+    "sourceSize": { "w": 896, "h": 128 },
     "duration": 100
    },
-   "M_Idle.png": {
-    "frame": { "x": 512, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "GoldMine_Destroyed.png": {
+   "GoldMine_Active.png": {
     "frame": { "x": 1920, "y": 128, "w": 192, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -32,7 +24,7 @@
     "duration": 100
    },
    "Resources 0.aseprite": {
-    "frame": { "x": 2112, "y": 128, "w": 128, "h": 128 },
+    "frame": { "x": 2048, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -40,7 +32,7 @@
     "duration": 500
    },
    "Resources 1.aseprite": {
-    "frame": { "x": 128, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 1920, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -48,7 +40,7 @@
     "duration": 100
    },
    "Resources 2.aseprite": {
-    "frame": { "x": 0, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 1792, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -56,7 +48,7 @@
     "duration": 100
    },
    "Resources 3.aseprite": {
-    "frame": { "x": 2560, "y": 256, "w": 128, "h": 128 },
+    "frame": { "x": 1664, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -64,7 +56,7 @@
     "duration": 100
    },
    "Resources 4.aseprite": {
-    "frame": { "x": 2432, "y": 256, "w": 128, "h": 128 },
+    "frame": { "x": 1536, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -72,7 +64,7 @@
     "duration": 100
    },
    "Resources 5.aseprite": {
-    "frame": { "x": 2304, "y": 256, "w": 128, "h": 128 },
+    "frame": { "x": 1408, "y": 320, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -80,7 +72,7 @@
     "duration": 100
    },
    "Resources 6.aseprite": {
-    "frame": { "x": 2176, "y": 256, "w": 128, "h": 128 },
+    "frame": { "x": 1280, "y": 320, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -88,7 +80,7 @@
     "duration": 100
    },
    "Resources 7.aseprite": {
-    "frame": { "x": 2112, "y": 128, "w": 128, "h": 128 },
+    "frame": { "x": 2048, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -96,7 +88,7 @@
     "duration": 500
    },
    "Resources 8.aseprite": {
-    "frame": { "x": 2048, "y": 256, "w": 128, "h": 128 },
+    "frame": { "x": 1152, "y": 320, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -104,7 +96,7 @@
     "duration": 500
    },
    "Resources 9.aseprite": {
-    "frame": { "x": 128, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 1920, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -112,7 +104,7 @@
     "duration": 100
    },
    "Resources 10.aseprite": {
-    "frame": { "x": 2240, "y": 128, "w": 128, "h": 128 },
+    "frame": { "x": 2176, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -120,7 +112,7 @@
     "duration": 100
    },
    "Resources 11.aseprite": {
-    "frame": { "x": 384, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 2112, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -128,7 +120,7 @@
     "duration": 100
    },
    "Resources 12.aseprite": {
-    "frame": { "x": 256, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 2304, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -136,7 +128,7 @@
     "duration": 100
    },
    "Resources 13.aseprite": {
-    "frame": { "x": 2432, "y": 384, "w": 128, "h": 128 },
+    "frame": { "x": 2048, "y": 256, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -144,7 +136,7 @@
     "duration": 100
    },
    "Resources 14.aseprite": {
-    "frame": { "x": 2368, "y": 128, "w": 128, "h": 128 },
+    "frame": { "x": 2432, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -152,7 +144,7 @@
     "duration": 100
    },
    "Resources 15.aseprite": {
-    "frame": { "x": 2048, "y": 256, "w": 128, "h": 128 },
+    "frame": { "x": 1152, "y": 320, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -160,7 +152,7 @@
     "duration": 500
    },
    "Resources 16.aseprite": {
-    "frame": { "x": 512, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 2368, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -168,7 +160,7 @@
     "duration": 500
    },
    "Resources 17.aseprite": {
-    "frame": { "x": 128, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 1920, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -216,31 +208,151 @@
     "duration": 100
    },
    "Resources 23.aseprite": {
-    "frame": { "x": 512, "y": 320, "w": 128, "h": 128 },
+    "frame": { "x": 2368, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
     "sourceSize": { "w": 128, "h": 128 },
     "duration": 500
    },
-   "W_Spawn.png": {
-    "frame": { "x": 0, "y": 0, "w": 896, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 896, "h": 128 },
-    "sourceSize": { "w": 896, "h": 128 },
-    "duration": 100
-   },
-   "GoldMine_Active.png": {
-    "frame": { "x": 1536, "y": 128, "w": 192, "h": 128 },
+   "GoldMine_Destroyed.png": {
+    "frame": { "x": 1728, "y": 128, "w": 192, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 192, "h": 128 },
     "sourceSize": { "w": 192, "h": 128 },
     "duration": 100
    },
-   "W_Idle.png": {
-    "frame": { "x": 2112, "y": 128, "w": 128, "h": 128 },
+   "G_Idle_(NoShadow).png": {
+    "frame": { "x": 2240, "y": 128, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "W_Idle_(NoShadow).png": {
+    "frame": { "x": 2304, "y": 256, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 0.aseprite": {
+    "frame": { "x": 2432, "y": 256, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 1.aseprite": {
+    "frame": { "x": 2560, "y": 256, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 2.aseprite": {
+    "frame": { "x": 2560, "y": 256, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 3.aseprite": {
+    "frame": { "x": 2560, "y": 256, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 4.aseprite": {
+    "frame": { "x": 0, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 5.aseprite": {
+    "frame": { "x": 128, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 6.aseprite": {
+    "frame": { "x": 128, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 7.aseprite": {
+    "frame": { "x": 256, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 8.aseprite": {
+    "frame": { "x": 384, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 9.aseprite": {
+    "frame": { "x": 2560, "y": 256, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 10.aseprite": {
+    "frame": { "x": 512, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 11.aseprite": {
+    "frame": { "x": 640, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 12.aseprite": {
+    "frame": { "x": 768, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 13.aseprite": {
+    "frame": { "x": 896, "y": 320, "w": 128, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
+    "sourceSize": { "w": 128, "h": 128 },
+    "duration": 100
+   },
+   "Happy_Sheep 14.aseprite": {
+    "frame": { "x": 1024, "y": 320, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -312,142 +424,22 @@
     "duration": 100
    },
    "G_Idle.png": {
-    "frame": { "x": 2048, "y": 256, "w": 128, "h": 128 },
+    "frame": { "x": 1152, "y": 320, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
     "sourceSize": { "w": 128, "h": 128 },
     "duration": 100
    },
-   "G_Idle_(NoShadow).png": {
-    "frame": { "x": 640, "y": 320, "w": 128, "h": 128 },
+   "M_Idle.png": {
+    "frame": { "x": 2368, "y": 128, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
     "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "G_Spawn.png": {
-    "frame": { "x": 896, "y": 0, "w": 896, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 896, "h": 128 },
-    "sourceSize": { "w": 896, "h": 128 },
     "duration": 100
    },
    "M_Idle_(NoShadow).png": {
-    "frame": { "x": 896, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 0.aseprite": {
-    "frame": { "x": 1024, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 1.aseprite": {
-    "frame": { "x": 1152, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 2.aseprite": {
-    "frame": { "x": 1152, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 3.aseprite": {
-    "frame": { "x": 1152, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 4.aseprite": {
-    "frame": { "x": 1280, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 5.aseprite": {
-    "frame": { "x": 1408, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 6.aseprite": {
-    "frame": { "x": 1408, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 7.aseprite": {
-    "frame": { "x": 1536, "y": 384, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 8.aseprite": {
-    "frame": { "x": 1664, "y": 384, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 9.aseprite": {
-    "frame": { "x": 1152, "y": 320, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 10.aseprite": {
-    "frame": { "x": 1792, "y": 384, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 11.aseprite": {
-    "frame": { "x": 1920, "y": 384, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 12.aseprite": {
-    "frame": { "x": 2048, "y": 384, "w": 128, "h": 128 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
-    "sourceSize": { "w": 128, "h": 128 },
-    "duration": 100
-   },
-   "Happy_Sheep 13.aseprite": {
     "frame": { "x": 2176, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
@@ -455,8 +447,16 @@
     "sourceSize": { "w": 128, "h": 128 },
     "duration": 100
    },
-   "Happy_Sheep 14.aseprite": {
-    "frame": { "x": 2304, "y": 384, "w": 128, "h": 128 },
+   "M_Spawn.png": {
+    "frame": { "x": 1792, "y": 0, "w": 896, "h": 128 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 896, "h": 128 },
+    "sourceSize": { "w": 896, "h": 128 },
+    "duration": 100
+   },
+   "W_Idle.png": {
+    "frame": { "x": 2048, "y": 384, "w": 128, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 128, "h": 128 },
@@ -464,7 +464,7 @@
     "duration": 100
    },
    "GoldMine_Inactive.png": {
-    "frame": { "x": 1728, "y": 128, "w": 192, "h": 128 },
+    "frame": { "x": 1536, "y": 128, "w": 192, "h": 128 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 192, "h": 128 },
@@ -489,13 +489,13 @@
    { "name": "Resources Meat", "from": 16, "to": 23, "direction": "forward", "color": "#f3ce52ff" },
    { "name": "Resources M_Idle", "from": 16, "to": 16, "direction": "forward", "color": "#57b9f2ff" },
    { "name": "Resources M_Spawn", "from": 17, "to": 23, "direction": "forward", "color": "#57b9f2ff" },
+   { "name": "Happy_Sheep Original", "from": 0, "to": 0, "direction": "forward", "color": "#f3ce52ff" },
+   { "name": "Happy_Sheep Idle", "from": 1, "to": 8, "direction": "forward", "color": "#57b9f2ff" },
+   { "name": "Happy_Sheep Bouncing", "from": 9, "to": 14, "direction": "forward", "color": "#6acd5bff" },
    { "name": "Tree Original", "from": 0, "to": 0, "direction": "forward", "color": "#f3ce52ff" },
    { "name": "Tree Idle", "from": 1, "to": 4, "direction": "forward", "color": "#57b9f2ff" },
    { "name": "Tree Hit", "from": 5, "to": 6, "direction": "forward", "color": "#fe5b59ff" },
-   { "name": "Tree Chopped", "from": 7, "to": 7, "direction": "forward", "color": "#d186dfff" },
-   { "name": "Happy_Sheep Original", "from": 0, "to": 0, "direction": "forward", "color": "#f3ce52ff" },
-   { "name": "Happy_Sheep Idle", "from": 1, "to": 8, "direction": "forward", "color": "#57b9f2ff" },
-   { "name": "Happy_Sheep Bouncing", "from": 9, "to": 14, "direction": "forward", "color": "#6acd5bff" }
+   { "name": "Tree Chopped", "from": 7, "to": 7, "direction": "forward", "color": "#d186dfff" }
   ]
  }
 }
