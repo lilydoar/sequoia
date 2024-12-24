@@ -2,17 +2,39 @@
 #define COMPONENT_H
 
 #include "atlas.h"
+#include "markov.h"
 #include "physics.h"
-#include <cglm/struct.h>
 
-/*typedef struct {} Component_SpriteStatic;*/
-/*typedef struct {} Component_SpriteAnimation;*/
-/*typedef struct {} Component_SpriteMarkov;*/
+#include <cglm/struct.h>
+#include <stdint.h>
+
+typedef struct {
+  // FIXME: This shouldn't be named frame
+  struct AnimationFrame *sprite;
+} SpriteStatic;
 
 enum PlaybackMode {
-  PLAYBACK_LOOP,
   PLAYBACK_ONCE,
+  PLAYBACK_FORWARD,
+  PLAYBACK_REVERSE,
+  PLAYBACK_PING_PONG,
 };
+typedef struct {
+  struct AnimationClip *animation;
+  enum PlaybackMode mode;
+} SpriteDynamic;
+
+typedef struct {
+  bool finished;
+  uint32_t currentFrame;
+  uint32_t frameTimeAccumulator;
+} SpritePlayback;
+
+typedef struct {
+  SpriteDynamic *sprites;
+  size_t statesCount;
+} SpriteMarkovMap;
+
 struct SpriteAnimation {
   struct AnimationClip *animation;
   size_t currentFrame;

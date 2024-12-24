@@ -36,6 +36,7 @@
 #include "atlas.h"
 #include "physics.h"
 #include "component.h"
+#include "entity.h"
 #include "gen/atlas/resources.atlas.c"
 
 #define UPDATES_PER_SECOND 60
@@ -278,11 +279,11 @@ struct GameTime {
   uint64_t accumulator;
 };
 
-struct Sheep {
-  Kinematic kinematic;
-  Collider collider;
-  struct SpriteAnimation animation;
-};
+/*struct Sheep {*/
+/*  Kinematic kinematic;*/
+/*  Collider collider;*/
+/*  struct SpriteAnimation animation;*/
+/*};*/
 
 struct Game {
   struct GameTime time;
@@ -695,6 +696,9 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
+  // Game - Init
+  Sheep sheep = Sheep_Init();
+
   struct Game game = {
       .time = {.current = 0},
       .camera =
@@ -705,28 +709,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                        1.0},
               .scale = 5.0,
           },
-      .sheep = {{
-          .kinematic =
-              {
-                  .mass = (Mass){.mass = 1.0, .uniform = true},
-                  .pos = {{0.0, 0.0}},
-                  .vel = {{0.0, 0.0}},
-                  .acc = {{0.0, 0.0}},
-              },
-          .collider =
-              {
-                  .shape = COLLIDER_SHAPE_CIRCLE,
-                  .circle = {.radius = 1.0},
-              },
-          .animation =
-              {
-                  .animation = &ANIM_HAPPY_SHEEP_IDLE,
-                  .mode = PLAYBACK_LOOP,
-                  .finished = false,
-                  .currentFrame = 0,
-                  .frameTimeAccumulator = 0,
-              },
-      }},
+      .sheep = sheep,
       .sheepCount = 1,
       .sheepMaxSpeed = 20.0 * SECONDS_PER_UPDATE,
       .sheepMaxDist = 1.2,
@@ -808,31 +791,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     if (context->input.state[SDL_SCANCODE_SPACE] &&
         context->game.sheepCount < MAX_SHEEP &&
         context->game.spawnCooldown == 0) {
-      struct Sheep newSheep = {
-          .kinematic =
-              {
-                  .mass = (Mass){.mass = 1.0, .uniform = true},
-                  .pos = {{context->game.camera.position[0],
-                           context->game.camera.position[1]}},
-                  .vel = {{0.0, 0.0}},
-                  .acc = {{0.0, 0.0}},
-              },
-          .collider =
-              {
-                  .shape = COLLIDER_SHAPE_CIRCLE,
-                  .circle = {.radius = 1.0},
-              },
-          .animation =
-              {
-                  .animation = &ANIM_HAPPY_SHEEP_IDLE,
-                  .mode = PLAYBACK_LOOP,
-                  .finished = false,
-                  .currentFrame = 0,
-                  .frameTimeAccumulator = 0,
-              },
-      };
 
-      context->game.sheep[context->game.sheepCount] = newSheep;
+      context->game.sheep[context->game.sheepCount] = Sheep_Init();
       context->game.sheepCount += 1;
       context->game.spawnCooldown = 20;
     }
