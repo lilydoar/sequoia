@@ -97,7 +97,7 @@ struct Render {
   SDL_GPUShaderFormat supported;
   SDL_GPUShaderFormat shader;
   SDL_GPUDevice *device;
-  RenderPipeline stagedPipeline;
+  DrawPipeline stagedPipeline;
   SDL_GPUGraphicsPipeline *pipeline;
   struct GPUTransferQueue queue;
   struct Atlas atlas;
@@ -160,11 +160,11 @@ struct Game {
 
 struct Context {
   struct App app;
+  struct AppTime time;
   struct Window window;
   struct Render render;
   struct Input input;
   struct Game game;
-  struct AppTime time;
 };
 
 struct Vertex {
@@ -284,6 +284,11 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   SDL_SetLogPriorities(SDL_LOG_PRIORITY_INFO);
 
   struct Context *context = SDL_malloc(sizeof(struct Context));
+  if (!context) {
+    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Allocate Context: %s\n",
+                 SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
 
   // App
   struct App app = {
@@ -479,11 +484,11 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   render.atlas = atlas;
 
   // Render - Pipeline
-  RenderPipeline pipeline = RenderPipeline_Init();
+  DrawPipeline pipeline = RenderPipeline_Init();
 
-  RenderStage sprite = RenderStage_Init();
+  DrawPipelineStage TexturedQuads = DrawPipelineStage_init();
   RenderStage_WithInfo(
-      &sprite,
+      &TexturedQuads,
       (RenderStageInfo){
           .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
           .target_info =
@@ -511,7 +516,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
               },
       });
   RenderStage_WithProgram(
-      &sprite,
+      &TexturedQuads,
       (RenderProgram){
 
           .info =
@@ -549,7 +554,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                   .num_vertex_attributes = 2,
               },
       });
-  RenderStage_WithProgram(&sprite,
+  RenderStage_WithProgram(&TexturedQuads,
                           (RenderProgram){
                               .info =
                                   {
@@ -562,7 +567,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                                   },
                           });
   RenderStage_WithResource(
-      &sprite,
+      &TexturedQuads,
       (RenderResource){
           .type = RENDER_RESOURCE_TYPE_VERTEX_BUFFER,
           .info.vertex =
@@ -575,7 +580,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           .type = RENDER_SLOT_TYPE_VERTEX,
           .binding = 0,
       });
-  RenderStage_WithResource(&sprite,
+  RenderStage_WithResource(&TexturedQuads,
                            (RenderResource){
                                .type = RENDER_RESOURCE_TYPE_INDEX_BUFFER,
                                .info.index =
@@ -586,7 +591,7 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                            },
                            (RenderProgramSlot){.type = RENDER_SLOT_TYPE_INDEX});
   RenderStage_WithResource(
-      &sprite,
+      &TexturedQuads,
       (RenderResource){
           .type = RENDER_RESOURCE_TYPE_TEXTURE_SAMPLER_PAIR,
           .info.textureSamplerPair =
@@ -618,12 +623,12 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           .type = RENDER_SLOT_TYPE_TEXTURE_SAMPLER_PAIR,
           .binding = 0,
       });
-  RenderPipeline_WithStage(&pipeline, sprite);
+  RenderPipeline_WithStage(&pipeline, TexturedQuads);
   // ...
   // Other stages
   // Terrain, Effects stags, UI stage, postprocessing
 
-  RenderPipeline_Build(&pipeline);
+  RenderPipeline_Build(&pipeline, context->render.device);
   render.stagedPipeline = pipeline;
 
   context->render = render;
@@ -909,65 +914,9 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     return SDL_APP_FAILURE;
   }
 
-  // NOTE: Swapchain acquisition is a gate to begin a render pass, but our app
-  // may continue successfully without producing a render pass on this
-  // iteration.
-  SDL_GPUTexture *swapchain;
-  if (!SDL_AcquireGPUSwapchainTexture(render, context->window.window,
-                                      &swapchain, NULL, NULL)) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire swapchain: %s",
-                 SDL_GetError());
-  }
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Acquired GPU swap chain texture");
-  if (!swapchain) {
-    SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "No swapchain texture acquired");
-    return SDL_APP_CONTINUE;
-  }
+  RenderStage_Run(&context->render.stagedPipeline.stages[0], render,
+                  context->window.window);
 
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Push GPU uniform vertex data");
-  SDL_PushGPUVertexUniformData(render, 0, mvp, sizeof(mvp));
-
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass begin");
-  SDL_GPURenderPass *pass =
-      SDL_BeginGPURenderPass(render,
-                             (SDL_GPUColorTargetInfo[]){{
-                                 .texture = swapchain,
-                                 .clear_color = CLEAR_COLOR,
-                                 .load_op = SDL_GPU_LOADOP_CLEAR,
-                                 .store_op = SDL_GPU_STOREOP_STORE,
-                             }},
-                             1, NULL);
-
-  // Render - Binding
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind pipeline");
-  SDL_BindGPUGraphicsPipeline(pass, context->render.pipeline);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind vertex buffer");
-  SDL_BindGPUVertexBuffers(pass, 0,
-                           (SDL_GPUBufferBinding[]){{
-                               .buffer = context->render.vertex,
-                           }},
-                           1);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind index buffer");
-  SDL_BindGPUIndexBuffer(
-      pass, &(SDL_GPUBufferBinding){.buffer = context->render.index},
-      INDEX_SIZE);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind atlas");
-  assert(context->render.atlas.texture);
-  assert(context->render.atlas.sampler);
-  SDL_BindGPUFragmentSamplers(pass, 0,
-                              (SDL_GPUTextureSamplerBinding[]){{
-                                  .texture = context->render.atlas.texture,
-                                  .sampler = context->render.atlas.sampler,
-                              }},
-                              1);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Binding complete");
-
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Draw quads: %zu quads", quadBuf.count);
-  uint32_t numIndices = QUAD_INDEX_COUNT * quadBuf.count;
-  SDL_DrawGPUIndexedPrimitives(pass, numIndices, 1, 0, 0, 0);
-
-  SDL_EndGPURenderPass(pass);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass complete");
   SDL_SubmitGPUCommandBuffer(render);
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass complete");
 
