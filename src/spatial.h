@@ -1,1 +1,5 @@
 // TODO
+//
+
+typedef struct {
+} UniformGrid;
