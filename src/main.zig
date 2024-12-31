@@ -1,24 +1,71 @@
-const std = @import("std");
+//------------------------------------------------------------------------------
+//  triangle.zig
+//
+//  Vertex buffer, shader, pipeline state object.
+//------------------------------------------------------------------------------
+const sokol = @import("sokol");
+const slog = sokol.log;
+const sg = sokol.gfx;
+const sapp = sokol.app;
+const sglue = sokol.glue;
+const shd = @import("shaders/triangle.glsl.zig");
 
-pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+const state = struct {
+    var bind: sg.Bindings = .{};
+    var pip: sg.Pipeline = .{};
+};
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+export fn init() void {
+    sg.setup(.{
+        .environment = sglue.environment(),
+        .logger = .{ .func = slog.func },
+    });
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    // create vertex buffer with triangle vertices
+    state.bind.vertex_buffers[0] = sg.makeBuffer(.{
+        .data = sg.asRange(&[_]f32{
+            // positions         colors
+            0.0,  0.5,  0.5, 1.0, 0.0, 0.0, 1.0,
+            0.5,  -0.5, 0.5, 0.0, 1.0, 0.0, 1.0,
+            -0.5, -0.5, 0.5, 0.0, 0.0, 1.0, 1.0,
+        }),
+    });
 
-    try bw.flush(); // don't forget to flush!
+    // create a shader and pipeline object
+    state.pip = sg.makePipeline(.{
+        .shader = sg.makeShader(shd.triangleShaderDesc(sg.queryBackend())),
+        .layout = init: {
+            var l = sg.VertexLayoutState{};
+            l.attrs[shd.ATTR_triangle_position].format = .FLOAT3;
+            l.attrs[shd.ATTR_triangle_color0].format = .FLOAT4;
+            break :init l;
+        },
+    });
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+export fn frame() void {
+    // default pass-action clears to grey
+    sg.beginPass(.{ .swapchain = sglue.swapchain() });
+    sg.applyPipeline(state.pip);
+    sg.applyBindings(state.bind);
+    sg.draw(0, 3, 1);
+    sg.endPass();
+    sg.commit();
+}
+
+export fn cleanup() void {
+    sg.shutdown();
+}
+
+pub fn main() void {
+    sapp.run(.{
+        .init_cb = init,
+        .frame_cb = frame,
+        .cleanup_cb = cleanup,
+        .width = 640,
+        .height = 480,
+        .icon = .{ .sokol_default = true },
+        .window_title = "triangle.zig",
+        .logger = .{ .func = slog.func },
+    });
 }
