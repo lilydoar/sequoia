@@ -1,4 +1,5 @@
 const std = @import("std");
+const sdl_internal = @import("sdl.zig");
 
 const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
@@ -9,25 +10,16 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     // const allocator = gpa.allocator();
 
-    if (!sdl.SDL_InitSubSystem(sdl.SDL_INIT_VIDEO)) {
-        std.log.err("{s}\n", .{sdl.SDL_GetError()});
-        return;
-    }
-    defer sdl.SDL_QuitSubSystem(sdl.SDL_INIT_VIDEO);
-    defer sdl.SDL_Quit();
-
-    const window: Window = .{
-        .title = "test window",
-        .width = 600,
-        .height = 400,
+    const app: sdl_internal.App = .{
+        .name = "Sequoia",
+        .url = "github.com/lilydoar/sequoia",
     };
-    const sdl_window = sdl.SDL_CreateWindow(
-        window.title.ptr,
-        window.width,
-        window.height,
-        window.flags,
-    );
-    defer sdl.SDL_DestroyWindow(sdl_window);
+    const window: sdl_internal.Window = .{
+        .width = 800,
+        .height = 600,
+    };
+    const sdl_context = try sdl_internal.Context.init(app, window);
+    defer sdl_context.deinit();
 
     var quit = false;
     while (!quit) {
@@ -36,13 +28,11 @@ pub fn main() !void {
             if (event.type == sdl.SDL_EVENT_QUIT) {
                 quit = true;
             }
+            if (event.type == sdl.SDL_EVENT_KEY_DOWN and
+                event.key.key == sdl.SDLK_ESCAPE)
+            {
+                quit = true;
+            }
         }
     }
 }
-
-const Window = struct {
-    title: []const u8,
-    width: u32,
-    height: u32,
-    flags: sdl.SDL_WindowFlags = 0,
-};
