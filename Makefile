@@ -1,13 +1,13 @@
 # Compiler settings
 C_COMPILER = clang
 CFLAGS = -Wall -Wextra -Wpedantic
-INC_FLAGS = -Iexternal/cglm/include -Iexternal/stb -Isrc/ -Iexternal/json-c
+INC_FLAGS = -Iexternal/cglm/include -Iexternal/stb -Isrc -Isrc/sequoia_c -Iexternal/json-c
 LIB_FLAGS = external/cglm/build/libcglm.a `pkg-config --cflags --libs sdl3`
 
 # File names
 TARGET = sequoia
 BUILD = build/bin
-SOURCES = src/main.c $(wildcard src/gen/**/*.c)
+SOURCES = src/sequoia_c/main.c $(wildcard src/gen/**/*.c)
 
 # Ensure the bin directory exists
 $(shell mkdir -p build/bin)
