@@ -1,72 +1,48 @@
 const std = @import("std");
 
-const sokol = @import("sokol");
-const log = sokol.log;
-const graphics = sokol.gfx;
-const app = sokol.app;
-const glue = sokol.glue;
-const shader = @import("shaders/triangle.glsl.zig");
+const sdl = @cImport({
+    @cInclude("SDL3/SDL.h");
+});
 
-const state = struct {
-    var bind: graphics.Bindings = .{};
-    var pip: graphics.Pipeline = .{};
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    // const allocator = gpa.allocator();
+
+    if (!sdl.SDL_InitSubSystem(sdl.SDL_INIT_VIDEO)) {
+        std.log.err("{s}\n", .{sdl.SDL_GetError()});
+        return;
+    }
+    defer sdl.SDL_QuitSubSystem(sdl.SDL_INIT_VIDEO);
+    defer sdl.SDL_Quit();
+
+    const window: Window = .{
+        .title = "test window",
+        .width = 600,
+        .height = 400,
+    };
+    const sdl_window = sdl.SDL_CreateWindow(
+        window.title.ptr,
+        window.width,
+        window.height,
+        window.flags,
+    );
+    defer sdl.SDL_DestroyWindow(sdl_window);
+
+    var quit = false;
+    while (!quit) {
+        var event: sdl.SDL_Event = undefined;
+        while (sdl.SDL_PollEvent(&event)) {
+            if (event.type == sdl.SDL_EVENT_QUIT) {
+                quit = true;
+            }
+        }
+    }
+}
+
+const Window = struct {
+    title: []const u8,
+    width: u32,
+    height: u32,
+    flags: sdl.SDL_WindowFlags = 0,
 };
-
-export fn init() void {
-    graphics.setup(.{
-        .environment = glue.environment(),
-        .logger = .{ .func = log.func },
-    });
-
-    // create vertex buffer with triangle vertices
-    state.bind.vertex_buffers[0] = graphics.makeBuffer(.{
-        .data = graphics.asRange(&[_]f32{
-            // positions         colors
-            0.0,  0.5,  0.5, 1.0, 0.0, 0.0, 1.0,
-            0.5,  -0.5, 0.5, 0.0, 1.0, 0.0, 1.0,
-            -0.5, -0.5, 0.5, 0.0, 0.0, 1.0, 1.0,
-        }),
-    });
-
-    // create a shader and pipeline object
-    var vertex_layout = graphics.VertexLayoutState{};
-    vertex_layout.attrs[shader.ATTR_triangle_position].format = .FLOAT3;
-    vertex_layout.attrs[shader.ATTR_triangle_color0].format = .FLOAT4;
-
-    state.pip = graphics.makePipeline(.{
-        .shader = graphics.makeShader(
-            shader.triangleShaderDesc(graphics.queryBackend()),
-        ),
-        .layout = vertex_layout,
-    });
-}
-
-export fn frame() void {
-    graphics.beginPass(.{ .swapchain = glue.swapchain() });
-    graphics.applyPipeline(state.pip);
-    graphics.applyBindings(state.bind);
-    graphics.draw(0, 3, 1);
-    graphics.endPass();
-    graphics.commit();
-}
-
-export fn cleanup() void {
-    graphics.shutdown();
-}
-
-pub fn main() void {
-    app.run(.{
-        .init_cb = init,
-        .frame_cb = frame,
-        .cleanup_cb = cleanup,
-        .width = 640,
-        .height = 480,
-        .icon = .{ .sokol_default = true },
-        .window_title = "triangle.zig",
-        .logger = .{ .func = log.func },
-    });
-}
-
-test "hello world" {
-    std.debug.assert(true);
-}

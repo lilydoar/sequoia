@@ -1,15 +1,11 @@
 .{
     .name = "sequoia",
     .version = "0.0.0",
-    .dependencies = .{
-        .sokol = .{
-            .url = "git+https://github.com/floooh/sokol-zig.git#3f516499fc420a67fa1f901da90b9adf7e8d159d",
-            .hash = "12207c343df695846b2041a11d86055163904f18552fd7fbf3b2c04e86757d35c95d",
-        },
-    },
+    .dependencies = .{},
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
+        "README.md",
     },
 }
