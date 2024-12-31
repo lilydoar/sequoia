@@ -19,4 +19,5 @@ pub fn build(b: *Build) !void {
     b.installArtifact(hello);
     const run = b.addRunArtifact(hello);
     b.step("run", "Run hello").dependOn(&run.step);
+    b.step("test", "Run hello").dependOn(&run.step);
 }
