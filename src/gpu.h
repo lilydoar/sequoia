@@ -6,6 +6,7 @@
 #include "SDL3/SDL_gpu.h"
 #include "SDL3/SDL_init.h"
 #include "SDL3/SDL_log.h"
+#include "cglm/types.h"
 
 #define GPU_TRANSFER_QUEUE_MAX_ITEMS 12
 
@@ -172,7 +173,6 @@ typedef enum {
 
 typedef struct {
   uint32_t type;
-  size_t size;
   union {
     SDL_GPUBufferCreateInfo vertex;
     SDL_GPUBufferCreateInfo index;
@@ -207,9 +207,6 @@ typedef struct {
 
 typedef struct {
   SDL_GPUPrimitiveType primitive_type;
-  // SDL_GPURasterizerState rasterizer_state;
-  // SDL_GPUMultisampleState multisample_state;
-  // SDL_GPUDepthStencilState depth_stencil_state;
   SDL_GPUGraphicsPipelineTargetInfo target_info;
 } RenderStageInfo;
 
@@ -229,18 +226,26 @@ typedef struct {
     SDL_GPUSampler *sampler;
     SDL_GPUGraphicsPipeline *pipeline;
   } running;
-} DrawPipelineStage;
+} DrawStep;
 
-DrawPipelineStage DrawPipelineStage_init(void) {
-  DrawPipelineStage newStage = {0};
+DrawStep DrawStep_init(void) {
+  DrawStep newStage = {0};
   return newStage;
 }
-void RenderStage_WithInfo(DrawPipelineStage *self, RenderStageInfo info) {
+void DrawStep_deinit(DrawStep *self, SDL_GPUDevice *device) {
+  assert(self);
+  assert(device);
+
+  SDL_ReleaseGPUShader(device, self->running.vertexProgram);
+  SDL_ReleaseGPUShader(device, self->running.FragmentProgram);
+  SDL_ReleaseGPUGraphicsPipeline(device, self->running.pipeline);
+}
+void DrawStep_WithInfo(DrawStep *self, RenderStageInfo info) {
   assert(self);
 
   self->info = info;
 }
-void RenderStage_WithProgram(DrawPipelineStage *self, RenderProgram program) {
+void DrawStep_WithProgram(DrawStep *self, RenderProgram program) {
   assert(self);
 
   switch (program.info.stage) {
@@ -252,8 +257,8 @@ void RenderStage_WithProgram(DrawPipelineStage *self, RenderProgram program) {
     break;
   }
 }
-void RenderStage_WithResource(DrawPipelineStage *self, RenderResource resource,
-                              RenderProgramSlot slot) {
+void DrawpStep_WithResource(DrawStep *self, RenderResource resource,
+                            RenderProgramSlot slot) {
   assert(self);
   assert(self->resourceCount + 1 < RENDER_STAGE_MAX_RESOURCES);
 
@@ -261,19 +266,21 @@ void RenderStage_WithResource(DrawPipelineStage *self, RenderResource resource,
   self->bindings[self->resourceCount] = slot;
   self->resourceCount += 1;
 }
-SDL_AppResult RenderStage_Build(DrawPipelineStage *self,
-                                SDL_GPUDevice *device) {
+SDL_AppResult DrawStep_Build(DrawStep *self, SDL_GPUDevice *device) {
+  assert(self);
+  assert(device);
+
   // Construct resources
   for (size_t i = 0; i < self->resourceCount; i += 1) {
-    RenderResource resource = self->resources[i];
-
     // Construct buffers
-    if (resource.type == RENDER_RESOURCE_TYPE_VERTEX_BUFFER) {
-      SDL_GPUBuffer *vertex =
-          SDL_CreateGPUBuffer(device, &(SDL_GPUBufferCreateInfo){
-                                          .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-                                          .size = resource.size,
-                                      });
+    if (self->resources[i].type == RENDER_RESOURCE_TYPE_VERTEX_BUFFER) {
+      SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Constructing vertex buffer: size: %u",
+                   self->resources[i].info.vertex.size);
+      SDL_GPUBuffer *vertex = SDL_CreateGPUBuffer(
+          device, &(SDL_GPUBufferCreateInfo){
+                      .usage = SDL_GPU_BUFFERUSAGE_VERTEX,
+                      .size = self->resources[i].info.vertex.size,
+                  });
       if (!vertex) {
         SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create vertex buffer: %s\n",
                      SDL_GetError());
@@ -281,46 +288,41 @@ SDL_AppResult RenderStage_Build(DrawPipelineStage *self,
       }
       SDL_SetGPUBufferName(device, vertex, "vertex");
       self->running.vertexBuf = vertex;
-    } else if (RENDER_RESOURCE_TYPE_INDEX_BUFFER) {
+
+    } else if (self->resources[i].type == RENDER_RESOURCE_TYPE_INDEX_BUFFER) {
+      SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Constructing index buffer: size: %u",
+                   self->resources[i].info.index.size);
       SDL_GPUBuffer *index = SDL_CreateGPUBuffer(
-          device,
-          &(SDL_GPUBufferCreateInfo){.usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-                                     .size = resource.size});
+          device, &(SDL_GPUBufferCreateInfo){
+                      .usage = SDL_GPU_BUFFERUSAGE_INDEX,
+                      .size = self->resources[i].info.index.size});
       if (!index) {
-        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create vertex buffer: %s\n",
+        SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create index buffer: %s\n",
                      SDL_GetError());
         return SDL_APP_FAILURE;
       }
       SDL_SetGPUBufferName(device, index, "index");
       self->running.indexBuf = index;
-    } else if (resource.type == RENDER_RESOURCE_TYPE_TEXTURE_SAMPLER_PAIR) {
+
+    } else if (self->resources[i].type ==
+               RENDER_RESOURCE_TYPE_TEXTURE_SAMPLER_PAIR) {
+      SDL_LogTrace(SDL_LOG_CATEGORY_GPU,
+                   "Constructing texture sampler pair: dimensions: %u x %u",
+                   self->resources[i].info.textureSamplerPair.texture.width,
+                   self->resources[i].info.textureSamplerPair.texture.height);
       SDL_GPUTexture *texture = SDL_CreateGPUTexture(
-          device, &(SDL_GPUTextureCreateInfo){
-                      .type = SDL_GPU_TEXTURETYPE_2D,
-                      .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-                      .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-                      .width = resource.info.textureSamplerPair.texture.width,
-                      .height = resource.info.textureSamplerPair.texture.height,
-                      .layer_count_or_depth = 1,
-                      .num_levels = 1,
-                  });
+          device, &self->resources[i].info.textureSamplerPair.texture);
       if (!texture) {
         SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create texture: %s\n",
                      SDL_GetError());
         return SDL_APP_FAILURE;
       }
+      // FIXME: actual name for resources
       SDL_SetGPUTextureName(device, texture, "texture");
       self->running.textureBuf = texture;
 
       SDL_GPUSampler *sampler = SDL_CreateGPUSampler(
-          device,
-          &(SDL_GPUSamplerCreateInfo){
-              .min_filter = SDL_GPU_FILTER_NEAREST,
-              .mag_filter = SDL_GPU_FILTER_NEAREST,
-              .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-              .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-              .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-          });
+          device, &self->resources[i].info.textureSamplerPair.sampler);
       if (!sampler) {
         SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create sampler: %s\n",
                      SDL_GetError());
@@ -342,7 +344,7 @@ SDL_AppResult RenderStage_Build(DrawPipelineStage *self,
 
   SDL_GPUShader *fShader =
       SDL_CreateGPUShader(device, &self->fragmentProgram.info);
-  if (!vShader) {
+  if (!fShader) {
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create fragment shader: %s\n",
                  SDL_GetError());
     return SDL_APP_FAILURE;
@@ -369,9 +371,12 @@ SDL_AppResult RenderStage_Build(DrawPipelineStage *self,
   return SDL_APP_CONTINUE;
 }
 
-SDL_AppResult RenderStage_Run(DrawPipelineStage *self,
-                              SDL_GPUCommandBuffer *cmdBuf,
-                              SDL_Window *window) {
+SDL_AppResult DrawStep_Run(DrawStep *self, SDL_GPUCommandBuffer *cmdBuf,
+                           SDL_Window *window, size_t numIndices) {
+  assert(self);
+  assert(cmdBuf);
+  assert(window);
+
   // NOTE: Swapchain acquisition is a gate to begin a render pass, but our app
   // may continue successfully without producing a render pass on this
   // iteration.
@@ -380,16 +385,13 @@ SDL_AppResult RenderStage_Run(DrawPipelineStage *self,
     SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Acquire swapchain: %s",
                  SDL_GetError());
   }
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Acquired GPU swap chain texture");
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Acquired GPU swap chain texture");
   if (!swapchain) {
-    SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "No swapchain texture acquired");
+    SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "No swapchain texture acquired");
     return SDL_APP_CONTINUE;
   }
 
-  // SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Push GPU uniform vertex data");
-  // SDL_PushGPUVertexUniformData(cmdBuf, 0, mvp, sizeof(mvp));
-
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass begin");
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "SDL render pass begin");
   SDL_GPURenderPass *pass =
       SDL_BeginGPURenderPass(cmdBuf,
                              (SDL_GPUColorTargetInfo[]){{
@@ -401,66 +403,76 @@ SDL_AppResult RenderStage_Run(DrawPipelineStage *self,
                              1, NULL);
 
   // Render - Binding
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind pipeline");
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Bind pipeline");
   SDL_BindGPUGraphicsPipeline(pass, self->running.pipeline);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind vertex buffer");
-  int quadVertexBuf = 0;
-  SDL_BindGPUVertexBuffers(pass, quadVertexBuf,
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Bind vertex buffer");
+  SDL_BindGPUVertexBuffers(pass, 0,
                            (SDL_GPUBufferBinding[]){{
                                .buffer = self->running.vertexBuf,
                            }},
                            1);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind index buffer");
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Bind index buffer");
   SDL_BindGPUIndexBuffer(
       pass, &(SDL_GPUBufferBinding){.buffer = self->running.indexBuf},
       INDEX_SIZE);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Bind atlas");
-  assert(self->running.textureBuf);
-  assert(self->running.sampler);
-  int atlasTexBuf = 0;
-  SDL_BindGPUFragmentSamplers(pass, atlasTexBuf,
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Bind texture");
+  SDL_BindGPUFragmentSamplers(pass, 0,
                               (SDL_GPUTextureSamplerBinding[]){{
                                   .texture = self->running.textureBuf,
                                   .sampler = self->running.sampler,
                               }},
                               1);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Binding complete");
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Binding complete");
 
-  // SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Draw quads: %zu quads",
-  // quadBuf.count); uint32_t numIndices = QUAD_INDEX_COUNT * quadBuf.count;
-  // SDL_DrawGPUIndexedPrimitives(pass, numIndices, 1, 0, 0, 0);
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "Drawing %zu primitives", numIndices);
+  SDL_DrawGPUIndexedPrimitives(pass, numIndices, 1, 0, 0, 0);
 
   SDL_EndGPURenderPass(pass);
-  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "SDL render pass complete");
+  SDL_LogTrace(SDL_LOG_CATEGORY_GPU, "SDL render pass complete");
 
   return SDL_APP_CONTINUE;
 }
 
 typedef struct {
-  DrawPipelineStage stages[RENDER_PIPELINE_MAX_STAGES];
+  DrawStep stages[RENDER_PIPELINE_MAX_STAGES];
   size_t stageCount;
 } DrawPipeline;
 
-DrawPipeline RenderPipeline_Init(void) {
+DrawPipeline RenderPipeline_init(void) {
   DrawPipeline newPipeline = {0};
   return newPipeline;
 }
-void RenderPipeline_WithStage(DrawPipeline *self, DrawPipelineStage stage) {
+void RenderPipeline_deinit(DrawPipeline *self, SDL_GPUDevice *device) {
+  for (size_t stage = 0; stage < self->stageCount; stage++) {
+    DrawStep_deinit(&self->stages[stage], device);
+  }
+}
+void RenderPipeline_AppendStep(DrawPipeline *self, DrawStep stage) {
   assert(self);
   assert(self->stageCount + 1 < RENDER_PIPELINE_MAX_STAGES);
 
   self->stages[self->stageCount] = stage;
   self->stageCount += 1;
 }
-void RenderPipeline_Build(DrawPipeline *self, SDL_GPUDevice *device) {
+SDL_AppResult RenderPipeline_Build(DrawPipeline *self, SDL_GPUDevice *device) {
+  assert(self);
+  assert(device);
+
   for (size_t stage = 0; stage < self->stageCount; stage++) {
-    RenderStage_Build(&self->stages[stage], device);
+    if (DrawStep_Build(&self->stages[stage], device) != SDL_APP_CONTINUE) {
+      return SDL_APP_FAILURE;
+    }
   }
+  return SDL_APP_CONTINUE;
 }
 void RenderPipeline_Run(DrawPipeline *self, SDL_GPUCommandBuffer *cmdBuf,
                         SDL_Window *window) {
+  assert(self);
+  assert(cmdBuf);
+  assert(window);
+
   for (size_t stage = 0; stage < self->stageCount; stage++) {
-    RenderStage_Run(&self->stages[stage], cmdBuf, window);
+    DrawStep_Run(&self->stages[stage], cmdBuf, window, 0);
   }
 }
 

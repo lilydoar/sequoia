@@ -95,14 +95,11 @@ void AtlasCoordToUV(struct Atlas self, uint32_t x, uint32_t y, vec2 uv) {
 
 struct Render {
   SDL_GPUShaderFormat supported;
-  SDL_GPUShaderFormat shader;
-  SDL_GPUDevice *device;
-  DrawPipeline stagedPipeline;
-  SDL_GPUGraphicsPipeline *pipeline;
-  struct GPUTransferQueue queue;
+  SDL_GPUShaderFormat shaderFormat;
   struct Atlas atlas;
-  SDL_GPUBuffer *vertex;
-  SDL_GPUBuffer *index;
+  SDL_GPUDevice *device;
+  DrawPipeline pipeline;
+  struct GPUTransferQueue queue;
 };
 
 struct Camera {
@@ -115,8 +112,8 @@ void camera_model_view_proj(struct Camera camera, mat4 mvp) {
   float scaled_height = camera.size[1] * camera.scale / 2;
 
   mat4 projection;
-  glm_ortho(-scaled_width, scaled_width, -scaled_height, scaled_height, 0.0,
-            1000.0, projection);
+  glm_ortho(-scaled_width, scaled_width, -scaled_height, scaled_height, -1.0,
+            1.0, projection);
 
   mat4 view;
   glm_mat4_identity(view);
@@ -281,7 +278,7 @@ const char *format_transformed_quad(const struct Vertex *vertices, mat4 mvp) {
 }
 
 SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
-  SDL_SetLogPriorities(SDL_LOG_PRIORITY_INFO);
+  SDL_SetLogPriorities(SDL_LOG_PRIORITY_TRACE);
 
   struct Context *context = SDL_malloc(sizeof(struct Context));
   if (!context) {
@@ -352,35 +349,12 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
-  // Render - GPU Buffers
-  render.vertex = SDL_CreateGPUBuffer(
-      render.device,
-      &(SDL_GPUBufferCreateInfo){.usage = SDL_GPU_BUFFERUSAGE_VERTEX,
-                                 .size = sizeof(struct Vertex) * MAX_VERTICES});
-  if (!render.vertex) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create vertex buffer: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
-  SDL_SetGPUBufferName(render.device, render.vertex, "Vertex");
-
-  render.index = SDL_CreateGPUBuffer(
-      render.device,
-      &(SDL_GPUBufferCreateInfo){.usage = SDL_GPU_BUFFERUSAGE_INDEX,
-                                 .size = sizeof(uint16_t) * MAX_INDICES});
-  if (!render.index) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create index buffer: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
-  SDL_SetGPUBufferName(render.device, render.index, "Index");
-
   // Render - Shader
   SDL_GPUShaderFormat deviceFormats = SDL_GetGPUShaderFormats(render.device);
 
   const char *shaderPath;
   if (deviceFormats & SDL_GPU_SHADERFORMAT_MSL) {
-    render.shader = SDL_GPU_SHADERFORMAT_MSL;
+    render.shaderFormat = SDL_GPU_SHADERFORMAT_MSL;
     shaderPath = "assets/gen/shaders/metal/sprite.metal";
   } else {
     return SDL_APP_FAILURE;
@@ -393,39 +367,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                  SDL_GetError());
     return SDL_APP_FAILURE;
   }
-
-  SDL_GPUShaderCreateInfo vertexInfo = {
-      .code_size = fileSize,
-      .code = contents,
-      .entrypoint = "vertexMain",
-      .format = render.shader,
-      .stage = SDL_GPU_SHADERSTAGE_VERTEX,
-      .num_uniform_buffers = 1,
-  };
-  SDL_GPUShader *vertex = SDL_CreateGPUShader(render.device, &vertexInfo);
-  if (!vertex) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create vertex shader: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
-
-  SDL_GPUShaderCreateInfo fragmentInfo = {
-      .code_size = fileSize,
-      .code = contents,
-      .entrypoint = "fragmentMain",
-      .format = render.shader,
-      .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
-      .num_samplers = 1,
-  };
-  SDL_GPUShader *fragment = SDL_CreateGPUShader(render.device, &fragmentInfo);
-  if (!fragment) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create fragment shader: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
-  SDL_LogInfo(SDL_LOG_CATEGORY_GPU, "Shader load complete: %s\n", shaderPath);
-
-  SDL_free(contents);
 
   // Render - GPU Transfer Queue
   render.queue = (struct GPUTransferQueue){.front = 0, .back = -1, .size = 0};
@@ -450,45 +391,12 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
     return SDL_APP_FAILURE;
   }
 
-  atlas.texture = SDL_CreateGPUTexture(
-      render.device, &(SDL_GPUTextureCreateInfo){
-                         .type = SDL_GPU_TEXTURETYPE_2D,
-                         .format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM,
-                         .usage = SDL_GPU_TEXTUREUSAGE_SAMPLER,
-                         .width = atlas.w,
-                         .height = atlas.h,
-                         .layer_count_or_depth = 1,
-                         .num_levels = 1,
-                     });
-  if (!atlas.texture) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create texture: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
-  SDL_SetGPUTextureName(render.device, atlas.texture, atlas.path);
-
-  atlas.sampler = SDL_CreateGPUSampler(
-      render.device,
-      &(SDL_GPUSamplerCreateInfo){
-          .min_filter = SDL_GPU_FILTER_NEAREST,
-          .mag_filter = SDL_GPU_FILTER_NEAREST,
-          .address_mode_u = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-          .address_mode_v = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-          .address_mode_w = SDL_GPU_SAMPLERADDRESSMODE_CLAMP_TO_EDGE,
-      });
-  if (!atlas.sampler) {
-    SDL_LogError(SDL_LOG_CATEGORY_ERROR, "Create sampler: %s\n",
-                 SDL_GetError());
-    return SDL_APP_FAILURE;
-  }
   render.atlas = atlas;
 
   // Render - Pipeline
-  DrawPipeline pipeline = RenderPipeline_Init();
-
-  DrawPipelineStage TexturedQuads = DrawPipelineStage_init();
-  RenderStage_WithInfo(
-      &TexturedQuads,
+  DrawStep entities = DrawStep_init();
+  DrawStep_WithInfo(
+      &entities,
       (RenderStageInfo){
           .primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
           .target_info =
@@ -515,16 +423,15 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                   .num_color_targets = 1,
               },
       });
-  RenderStage_WithProgram(
-      &TexturedQuads,
+  DrawStep_WithProgram(
+      &entities,
       (RenderProgram){
-
           .info =
               {
                   .code_size = fileSize,
                   .code = contents,
                   .entrypoint = "vertexMain",
-                  .format = render.shader,
+                  .format = render.shaderFormat,
                   .stage = SDL_GPU_SHADERSTAGE_VERTEX,
                   .num_uniform_buffers = 1,
               },
@@ -554,20 +461,20 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
                   .num_vertex_attributes = 2,
               },
       });
-  RenderStage_WithProgram(&TexturedQuads,
-                          (RenderProgram){
-                              .info =
-                                  {
-                                      .code_size = fileSize,
-                                      .code = contents,
-                                      .entrypoint = "fragmentMain",
-                                      .format = render.shader,
-                                      .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
-                                      .num_samplers = 1,
-                                  },
-                          });
-  RenderStage_WithResource(
-      &TexturedQuads,
+  DrawStep_WithProgram(&entities,
+                       (RenderProgram){
+                           .info =
+                               {
+                                   .code_size = fileSize,
+                                   .code = contents,
+                                   .entrypoint = "fragmentMain",
+                                   .format = render.shaderFormat,
+                                   .stage = SDL_GPU_SHADERSTAGE_FRAGMENT,
+                                   .num_samplers = 1,
+                               },
+                       });
+  DrawpStep_WithResource(
+      &entities,
       (RenderResource){
           .type = RENDER_RESOURCE_TYPE_VERTEX_BUFFER,
           .info.vertex =
@@ -580,18 +487,20 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           .type = RENDER_SLOT_TYPE_VERTEX,
           .binding = 0,
       });
-  RenderStage_WithResource(&TexturedQuads,
-                           (RenderResource){
-                               .type = RENDER_RESOURCE_TYPE_INDEX_BUFFER,
-                               .info.index =
-                                   {
-                                       .usage = SDL_GPU_BUFFERUSAGE_INDEX,
-                                       .size = sizeof(uint16_t) * MAX_INDICES,
-                                   },
-                           },
-                           (RenderProgramSlot){.type = RENDER_SLOT_TYPE_INDEX});
-  RenderStage_WithResource(
-      &TexturedQuads,
+  DrawpStep_WithResource(&entities,
+                         (RenderResource){
+                             .type = RENDER_RESOURCE_TYPE_INDEX_BUFFER,
+                             .info.index =
+                                 {
+                                     .usage = SDL_GPU_BUFFERUSAGE_INDEX,
+                                     .size = sizeof(uint16_t) * MAX_INDICES,
+                                 },
+                         },
+                         (RenderProgramSlot){
+                             .type = RENDER_SLOT_TYPE_INDEX,
+                         });
+  DrawpStep_WithResource(
+      &entities,
       (RenderResource){
           .type = RENDER_RESOURCE_TYPE_TEXTURE_SAMPLER_PAIR,
           .info.textureSamplerPair =
@@ -623,26 +532,37 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
           .type = RENDER_SLOT_TYPE_TEXTURE_SAMPLER_PAIR,
           .binding = 0,
       });
-  RenderPipeline_WithStage(&pipeline, TexturedQuads);
+
+  render.pipeline = RenderPipeline_init();
+  RenderPipeline_AppendStep(&render.pipeline, entities);
   // ...
   // Other stages
   // Terrain, Effects stags, UI stage, postprocessing
 
-  RenderPipeline_Build(&pipeline, context->render.device);
-  render.stagedPipeline = pipeline;
+  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "Building render pipeline");
+  if (RenderPipeline_Build(&render.pipeline, render.device) !=
+      SDL_APP_CONTINUE) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Build render pipeline: %s",
+                 SDL_GetError());
+    return SDL_APP_FAILURE;
+  }
 
   context->render = render;
 
+  SDL_free(contents);
+
   // Move static data --> GPU
   SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Transfer static GPU data");
-  if (!EnqueueTransferToGPUBuffer(&context->render.queue, indices,
-                                  sizeof(indices), context->render.index)) {
+  if (!EnqueueTransferToGPUBuffer(
+          &context->render.queue, indices, sizeof(indices),
+          context->render.pipeline.stages[0].running.indexBuf)) {
     return SDL_APP_FAILURE;
   }
   if (!EnqueueTransferToGPUTexture(
           &context->render.queue, context->render.atlas.pixels,
           AtlasSize(context->render.atlas), context->render.atlas.w,
-          context->render.atlas.h, context->render.atlas.texture)) {
+          context->render.atlas.h,
+          context->render.pipeline.stages[0].running.textureBuf)) {
     return SDL_APP_FAILURE;
   }
   if (!EmptyGPUTransferQueue(&context->render.queue, context->render.device)) {
@@ -683,9 +603,6 @@ SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv) {
   context->input = (struct Input){0};
 
   *appstate = context;
-
-  SDL_ReleaseGPUShader(render.device, vertex);
-  SDL_ReleaseGPUShader(render.device, fragment);
 
   SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION, "App init complete");
   return SDL_APP_CONTINUE;
@@ -754,6 +671,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     if (context->input.state[SDL_SCANCODE_SPACE] &&
         context->game.sheepCount < MAX_SHEEP &&
         context->game.spawnCooldown == 0) {
+
+      SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "Spawning new sheep");
 
       context->game.sheep[context->game.sheepCount] = Sheep_Init();
       context->game.sheep[context->game.sheepCount].kinematic.pos.x =
@@ -847,6 +766,8 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
 
   mat4 mvp;
   camera_model_view_proj(context->game.camera, mvp);
+  SDL_LogTrace(SDL_LOG_CATEGORY_APPLICATION, "camera MVP: %s",
+               format_mat4(mvp));
 
   // Draw Sheep
   for (size_t sheepIdx = 0; sheepIdx < context->game.sheepCount; sheepIdx++) {
@@ -888,9 +809,9 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
   // Move dynamic data --> GPU
   if (quadBuf.count > 0) {
     SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Transfer dynamic GPU data");
-    if (!EnqueueTransferToGPUBuffer(&context->render.queue, quadBuf.vertices,
-                                    QuadBufferSize(&quadBuf),
-                                    context->render.vertex)) {
+    if (!EnqueueTransferToGPUBuffer(
+            &context->render.queue, quadBuf.vertices, QuadBufferSize(&quadBuf),
+            context->render.pipeline.stages[0].running.vertexBuf)) {
       return SDL_APP_FAILURE;
     }
     if (!EmptyGPUTransferQueue(&context->render.queue,
@@ -914,10 +835,19 @@ SDL_AppResult SDL_AppIterate(void *appstate) {
     return SDL_APP_FAILURE;
   }
 
-  RenderStage_Run(&context->render.stagedPipeline.stages[0], render,
-                  context->window.window);
+  SDL_LogDebug(SDL_LOG_CATEGORY_GPU, "Push GPU uniform vertex data");
+  SDL_PushGPUVertexUniformData(render, 0, mvp, sizeof(mat4));
 
-  SDL_SubmitGPUCommandBuffer(render);
+  if (DrawStep_Run(&context->render.pipeline.stages[0], render,
+                   context->window.window,
+                   QUAD_INDEX_COUNT * quadBuf.count) != SDL_APP_CONTINUE) {
+    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Run draw step");
+  }
+
+  if (!SDL_SubmitGPUCommandBuffer(render)) {
+    SDL_LogError(SDL_LOG_CATEGORY_GPU, "Submit GPU command buffer: %s",
+                 SDL_GetError());
+  }
   SDL_LogDebug(SDL_LOG_CATEGORY_APPLICATION, "Render pass complete");
 
   context->input = (struct Input){0};
@@ -953,8 +883,8 @@ SDL_AppResult SDL_AppEvent(void *appstate, SDL_Event *event) {
 void SDL_AppQuit(void *appstate, SDL_AppResult result) {
   struct Context *context = (struct Context *)appstate;
 
-  SDL_ReleaseGPUGraphicsPipeline(context->render.device,
-                                 context->render.pipeline);
+  RenderPipeline_deinit(&context->render.pipeline, context->render.device);
+
   SDL_ReleaseWindowFromGPUDevice(context->render.device,
                                  context->window.window);
   SDL_DestroyGPUDevice(context->render.device);
