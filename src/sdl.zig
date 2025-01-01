@@ -110,3 +110,42 @@ fn set_app_metadata(app: App) !void {
         }
     }
 }
+
+/// Upload data to the GPU
+pub const Upload = struct {
+    const Item = struct {
+        // Data to be uploaded to the GPU
+        data: *anyopaque,
+        size: usize,
+        // Location to upload data to
+        location: union(enum) {
+            Buffer: sdl.SDL_GPUBuffer,
+            Texture: struct {
+                width: u32,
+                height: u32,
+                texture: sdl.SDL_GPUTexture,
+            },
+        },
+    };
+
+    items: std.ArrayList(Item),
+
+    pub fn init(alloc: std.mem.Allocator) Upload {
+        return .{
+            .items = std.ArrayList(Item).init(alloc),
+        };
+    }
+
+    pub fn deinit(self: Upload) void {
+        self.items.deinit();
+    }
+
+    pub fn stage(self: *Upload, item: Item) void {
+        _ = self; // autofix
+        _ = item; // autofix
+    }
+
+    pub fn flush(self: *Upload) void {
+        _ = self; // autofix
+    }
+};
