@@ -1,4 +1,4 @@
-struct VertexInput
+struct Vertex
 {
     float2 position : POSITION;
     float4 color    : COLOR;
@@ -11,7 +11,7 @@ struct VertexOutput
 };
 
 [shader("vertex")]
-VertexOutput vertexMain(VertexInput input)
+VertexOutput vertexMain(Vertex input)
 {
     VertexOutput output;
 

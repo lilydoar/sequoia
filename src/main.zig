@@ -23,16 +23,6 @@ pub fn main() !void {
     var context = try ctx.init(app_lifetime, app, window);
     defer context.deinit();
 
-    // Load shaders
-
-    // const tri_vert_shader = shader.fromFile("assets/gen/shaders/metal/triangle.metal");
-    // _ = tri_vert_shader;
-
-    // const info: sdl.SDL_GPUGraphicsPipelineCreateInfo = {};
-    // const tri_pipeline: sdl.SDL_GPUGraphicsPipeline =
-    //     sdl.SDL_CreateGPUGraphicsPipeline(context.device, info);
-    // _ = tri_pipeline;
-
     // Game init
 
     // Init draw

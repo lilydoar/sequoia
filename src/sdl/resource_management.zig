@@ -30,7 +30,7 @@ pub fn ResourceLib(comptime T: type) type {
             }
 
             try self.ids.put(name, self.resources.items.len);
-            errdefer self.ids.remove(name);
+            errdefer _ = self.ids.remove(name);
 
             try self.resources.append(resource);
             return self.ids.get(name).?;
