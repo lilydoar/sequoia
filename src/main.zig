@@ -25,7 +25,8 @@ pub fn main() !void {
 
     // Load shaders
 
-    const tri_vert_shader = shader.fromFile("assets/gen/shaders/metal/triangle.metal");
+    // const tri_vert_shader = shader.fromFile("assets/gen/shaders/metal/triangle.metal");
+    // _ = tri_vert_shader;
 
     // const info: sdl.SDL_GPUGraphicsPipelineCreateInfo = {};
     // const tri_pipeline: sdl.SDL_GPUGraphicsPipeline =

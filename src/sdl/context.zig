@@ -50,8 +50,9 @@ pub fn init(alloc: std.mem.Allocator, app: App, window: Window) !Self {
     };
 }
 
-pub fn deinit(self: Self) void {
+pub fn deinit(self: *Self) void {
     self.pipelines.deinit();
+    self.shaders.deinit();
     self.gpu_upload_staging.deinit();
     sdl.SDL_DestroyGPUDevice(self.device);
     sdl.SDL_DestroyWindow(self.window);

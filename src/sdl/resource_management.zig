@@ -19,7 +19,7 @@ pub fn ResourceLib(comptime T: type) type {
             };
         }
 
-        pub fn deinit(self: Self) void {
+        pub fn deinit(self: *Self) void {
             self.resources.deinit();
             self.ids.deinit();
         }
