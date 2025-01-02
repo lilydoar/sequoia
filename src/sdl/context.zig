@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const Upload = @import("gpu_upload.zig");
+const manager = @import("resource_management.zig");
 
 const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
@@ -9,6 +10,8 @@ const sdl = @cImport({
 window: *sdl.SDL_Window,
 device: *sdl.SDL_GPUDevice,
 gpu_upload_staging: Upload,
+shaders: manager.ResourceLib(*sdl.SDL_GPUShader),
+pipelines: manager.ResourceLib(*sdl.SDL_GPUGraphicsPipeline),
 
 const Self = @This();
 
@@ -42,10 +45,13 @@ pub fn init(alloc: std.mem.Allocator, app: App, window: Window) !Self {
         .window = sdl_window,
         .device = sdl_device,
         .gpu_upload_staging = Upload.init(alloc),
+        .shaders = manager.ResourceLib(*sdl.SDL_GPUShader).init(alloc),
+        .pipelines = manager.ResourceLib(*sdl.SDL_GPUGraphicsPipeline).init(alloc),
     };
 }
 
 pub fn deinit(self: Self) void {
+    self.pipelines.deinit();
     self.gpu_upload_staging.deinit();
     sdl.SDL_DestroyGPUDevice(self.device);
     sdl.SDL_DestroyWindow(self.window);

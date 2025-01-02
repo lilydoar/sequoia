@@ -2,7 +2,7 @@
 
 set -e
 
-rm -r assets/gen/shaders
+rm -rf assets/gen/shaders
 
 # mkdir -p assets/gen/shaders/dxil
 mkdir -p assets/gen/shaders/metal

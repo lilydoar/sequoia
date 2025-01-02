@@ -1,5 +1,6 @@
 const std = @import("std");
 const ctx = @import("sdl/context.zig");
+const shader = @import("sdl/shader.zig");
 
 const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
@@ -22,7 +23,18 @@ pub fn main() !void {
     var context = try ctx.init(app_lifetime, app, window);
     defer context.deinit();
 
+    // Load shaders
+
+    const tri_vert_shader = shader.fromFile("assets/gen/shaders/metal/triangle.metal");
+
+    // const info: sdl.SDL_GPUGraphicsPipelineCreateInfo = {};
+    // const tri_pipeline: sdl.SDL_GPUGraphicsPipeline =
+    //     sdl.SDL_CreateGPUGraphicsPipeline(context.device, info);
+    // _ = tri_pipeline;
+
     // Game init
+
+    // Init draw
 
     // Upload static data
 
