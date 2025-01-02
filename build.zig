@@ -4,6 +4,11 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const zigimg_dep = b.dependency("zigimg", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     // const lib = b.addStaticLibrary(.{
     //     .name = "sequoia",
     //     .root_source_file = b.path("src/root.zig"),
@@ -23,6 +28,8 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.linkSystemLibrary("SDL3");
+
+    exe.root_module.addImport("zigimg", zigimg_dep.module("zigimg"));
 
     b.installArtifact(exe);
 

@@ -1,7 +1,12 @@
 .{
     .name = "sequoia",
     .version = "0.0.0",
-    .dependencies = .{},
+    .dependencies = .{
+        .zigimg = .{
+            .url = "https://github.com/zigimg/zigimg/archive/master.tar.gz",
+            .hash = "12209f87b3efff5a5b2fa4e47f96080b0a7eda72874abc7e6fd85f1590b8ba15398e",
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
