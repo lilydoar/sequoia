@@ -34,5 +34,11 @@ pub fn main() !void {
                 quit = true;
             }
         }
+
+        // Game state
+
+        // Upload state to GPU
+
+        // Draw game
     }
 }
