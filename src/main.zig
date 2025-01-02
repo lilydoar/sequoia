@@ -1,5 +1,5 @@
 const std = @import("std");
-const sdl_internal = @import("sdl.zig");
+const ctx = @import("sdl/context.zig");
 
 const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
@@ -8,18 +8,23 @@ const sdl = @cImport({
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
-    // const allocator = gpa.allocator();
+    const app_lifetime = gpa.allocator();
 
-    const app: sdl_internal.App = .{
+    // App init
+    const app: ctx.App = .{
         .name = "Sequoia",
         .url = "github.com/lilydoar/sequoia",
     };
-    const window: sdl_internal.Window = .{
+    const window: ctx.Window = .{
         .width = 800,
         .height = 600,
     };
-    const sdl_context = try sdl_internal.Context.init(app, window);
-    defer sdl_context.deinit();
+    var context = try ctx.init(app_lifetime, app, window);
+    defer context.deinit();
+
+    // Game init
+
+    // Upload static data
 
     var quit = false;
     while (!quit) {
@@ -35,10 +40,12 @@ pub fn main() !void {
             }
         }
 
-        // Game state
+        // Update Game
+        std.debug.assert(context.gpu_upload_staging.staged() == 0);
+        {}
+        try context.gpu_upload_staging.flush(context.device);
 
-        // Upload state to GPU
-
-        // Draw game
+        // Draw Game
+        {}
     }
 }
