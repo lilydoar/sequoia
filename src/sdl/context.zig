@@ -1,54 +1,56 @@
 const std = @import("std");
 
-const Upload = @import("sdl/gpu_upload.zig");
+const Upload = @import("gpu_upload.zig");
 
 const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
-pub const Context = struct {
-    window: *sdl.SDL_Window,
-    device: *sdl.SDL_GPUDevice,
-    gpu_upload_staging: Upload,
+window: *sdl.SDL_Window,
+device: *sdl.SDL_GPUDevice,
+gpu_upload_staging: Upload,
 
-    pub fn init(app: App, window: Window) !Context {
-        try set_app_metadata(app);
+const Self = @This();
 
-        if (!sdl.SDL_InitSubSystem(sdl.SDL_INIT_VIDEO)) {
-            return error.SDL_Init_Video;
-        }
+pub fn init(alloc: std.mem.Allocator, app: App, window: Window) !Self {
+    try set_app_metadata(app);
 
-        const sdl_window = sdl.SDL_CreateWindow(
-            app.name.ptr,
-            @intCast(window.width),
-            @intCast(window.height),
-            window.flags,
-        ) orelse return error.SDL_CreateWindow;
-
-        const sdl_device = sdl.SDL_CreateGPUDevice(
-            sdl.SDL_GPU_SHADERFORMAT_DXIL |
-                sdl.SDL_GPU_SHADERFORMAT_MSL |
-                sdl.SDL_GPU_SHADERFORMAT_SPIRV,
-            true,
-            null,
-        ) orelse return error.SDL_CreateGPUDevice;
-
-        if (!sdl.SDL_ClaimWindowForGPUDevice(sdl_device, sdl_window)) {
-            return error.SDL_ClaimWindowForGPUDevice;
-        }
-
-        return .{
-            .window = sdl_window,
-            .device = sdl_device,
-        };
+    if (!sdl.SDL_InitSubSystem(sdl.SDL_INIT_VIDEO)) {
+        return error.SDL_Init_Video;
     }
 
-    pub fn deinit(self: Context) void {
-        sdl.SDL_DestroyGPUDevice(self.device);
-        sdl.SDL_DestroyWindow(self.window);
-        sdl.SDL_Quit();
+    const sdl_window = sdl.SDL_CreateWindow(
+        app.name.ptr,
+        @intCast(window.width),
+        @intCast(window.height),
+        window.flags,
+    ) orelse return error.SDL_CreateWindow;
+
+    const sdl_device = sdl.SDL_CreateGPUDevice(
+        sdl.SDL_GPU_SHADERFORMAT_DXIL |
+            sdl.SDL_GPU_SHADERFORMAT_MSL |
+            sdl.SDL_GPU_SHADERFORMAT_SPIRV,
+        true,
+        null,
+    ) orelse return error.SDL_CreateGPUDevice;
+
+    if (!sdl.SDL_ClaimWindowForGPUDevice(sdl_device, sdl_window)) {
+        return error.SDL_ClaimWindowForGPUDevice;
     }
-};
+
+    return .{
+        .window = sdl_window,
+        .device = sdl_device,
+        .gpu_upload_staging = Upload.init(alloc),
+    };
+}
+
+pub fn deinit(self: Self) void {
+    self.gpu_upload_staging.deinit();
+    sdl.SDL_DestroyGPUDevice(self.device);
+    sdl.SDL_DestroyWindow(self.window);
+    sdl.SDL_Quit();
+}
 
 pub const App = struct {
     name: []const u8,
