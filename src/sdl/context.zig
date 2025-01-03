@@ -42,100 +42,27 @@ pub fn init(alloc: std.mem.Allocator, app: App, window: Window) !Self {
         return error.SDL_ClaimWindowForGPUDevice;
     }
 
-    var shaders = manager.ResourceLib(*sdl.SDL_GPUShader).init(alloc);
-    var pipelines = manager.ResourceLib(*sdl.SDL_GPUGraphicsPipeline)
-        .init(alloc);
-
-    // TODO
-    // I think I want to move the init of specific shaders to a render context.
-    // The shaders and pipelines will still be registered through the sdl context.
-    {
-        const tri_vert = try shaders.register(
-            "tri_vert",
-            try shader.fromFile(
-                device,
-                "assets/gen/shaders/metal/triangle.metal",
-                .{
-                    .entrypoint = "vertexMain",
-                    .format = sdl.SDL_GPU_SHADERFORMAT_MSL,
-                    .stage = sdl.SDL_GPU_SHADERSTAGE_VERTEX,
-                    .num_storage_buffers = 1,
-                },
-            ),
-        );
-        const tri_frag = try shaders.register(
-            "tri_frag",
-            try shader.fromFile(
-                device,
-                "assets/gen/shaders/metal/triangle.metal",
-                .{
-                    .entrypoint = "fragmentMain",
-                    .format = sdl.SDL_GPU_SHADERFORMAT_MSL,
-                    .stage = sdl.SDL_GPU_SHADERSTAGE_FRAGMENT,
-                },
-            ),
-        );
-
-        // Not certain where this information's init belongs.
-        // I think it is strongly linked to the vertex shader.
-        // But it may be slightly more generic than that
-        const buffer_desc = [_]sdl.SDL_GPUVertexBufferDescription{
-            .{
-                .slot = 0,
-                .pitch = @sizeOf(f32) * 6,
-                .input_rate = sdl.SDL_GPU_VERTEXINPUTRATE_VERTEX,
-            },
-        };
-        const vert_attribs = [_]sdl.SDL_GPUVertexAttribute{
-            .{
-                .location = 0,
-                .buffer_slot = 0,
-                .format = sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                .offset = 0,
-            },
-            .{
-                .location = 1,
-                .buffer_slot = 0,
-                .format = sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                .offset = @sizeOf(f32) * 2,
-            },
-        };
-
-        _ = try pipelines.register(
-            "triangle",
-            sdl.SDL_CreateGPUGraphicsPipeline(
-                device,
-                &.{
-                    .vertex_shader = shaders.get(tri_vert),
-                    .fragment_shader = shaders.get(tri_frag),
-                    .primitive_type = sdl.SDL_GPU_PRIMITIVETYPE_TRIANGLELIST,
-                    .vertex_input_state = .{
-                        .vertex_buffer_descriptions = &buffer_desc,
-                        .num_vertex_buffers = buffer_desc.len,
-                        .vertex_attributes = &vert_attribs,
-                        .num_vertex_attributes = vert_attribs.len,
-                    },
-                    .rasterizer_state = .{},
-                    .multisample_state = .{},
-                    .depth_stencil_state = .{},
-                    .target_info = .{},
-                },
-            ) orelse return error.SDL_CreateGPUGraphicsPipeline,
-        );
-    }
-
     return .{
         .window = sdl_window,
         .device = device,
         .gpu_upload_staging = Upload.init(alloc),
-        .shaders = shaders,
-        .pipelines = pipelines,
+        .shaders = manager.ResourceLib(*sdl.SDL_GPUShader).init(alloc),
+        .pipelines = manager.ResourceLib(*sdl.SDL_GPUGraphicsPipeline)
+            .init(alloc),
     };
 }
 
 pub fn deinit(self: *Self) void {
+    for (self.pipelines.resources.items) |p| {
+        sdl.SDL_ReleaseGPUGraphicsPipeline(self.device, p);
+    }
     self.pipelines.deinit();
+
+    for (self.shaders.resources.items) |s| {
+        sdl.SDL_ReleaseGPUShader(self.device, s);
+    }
     self.shaders.deinit();
+
     self.gpu_upload_staging.deinit();
     sdl.SDL_DestroyGPUDevice(self.device);
     sdl.SDL_DestroyWindow(self.window);

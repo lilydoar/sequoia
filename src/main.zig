@@ -1,6 +1,6 @@
 const std = @import("std");
-const ctx = @import("sdl/context.zig");
-const shader = @import("sdl/shader.zig");
+const Context = @import("sdl/context.zig");
+const tri = @import("render/triangle.zig");
 
 const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
@@ -12,20 +12,20 @@ pub fn main() !void {
     const app_lifetime = gpa.allocator();
 
     // App init
-    const app: ctx.App = .{
+    const app: Context.App = .{
         .name = "Sequoia",
         .url = "github.com/lilydoar/sequoia",
     };
-    const window: ctx.Window = .{
+    const window: Context.Window = .{
         .width = 800,
         .height = 600,
     };
-    var context = try ctx.init(app_lifetime, app, window);
+    var context = try Context.init(app_lifetime, app, window);
     defer context.deinit();
 
-    // Game init
-
-    // Init draw
+    // Init render
+    // TODO: Create vertex buffer
+    const triangle = try tri.init(&context);
 
     // Upload static data
 
@@ -49,6 +49,22 @@ pub fn main() !void {
         try context.gpu_upload_staging.flush(context.device);
 
         // Draw Game
-        {}
+        {
+            const commandBuf = sdl.SDL_AcquireGPUCommandBuffer(
+                context.device,
+            ) orelse return error.SDL_AcquireGPUCommandBuffer;
+            errdefer _ = sdl.SDL_CancelGPUCommandBuffer(commandBuf);
+
+            try triangle.draw(context, commandBuf, .{
+                .primitives = .{
+                    .num_vertices = 3,
+                    .num_instances = 1,
+                },
+            });
+
+            if (!sdl.SDL_SubmitGPUCommandBuffer(commandBuf)) {
+                return error.SDL_SubmitGPUCommandBuffer;
+            }
+        }
     }
 }

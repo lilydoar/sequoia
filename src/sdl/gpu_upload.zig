@@ -62,11 +62,6 @@ pub fn flush(self: *Self, device: *sdl.SDL_GPUDevice) !void {
     }
 }
 
-pub fn pop_front(list: *std.ArrayList(Item)) ?Item {
-    if (list.items.len == 0) return null;
-    const item = list.orderedRemove(0);
-    return item;
-}
 fn upload_item(
     self: *Self,
     device: *sdl.SDL_GPUDevice,
@@ -118,4 +113,10 @@ fn upload_item(
             );
         },
     }
+}
+
+fn pop_front(list: *std.ArrayList(Item)) ?Item {
+    if (list.items.len == 0) return null;
+    const item = list.orderedRemove(0);
+    return item;
 }
