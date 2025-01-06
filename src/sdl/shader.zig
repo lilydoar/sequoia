@@ -16,7 +16,8 @@ const Info = struct {
 
 pub fn fromFile(device: *sdl.SDL_GPUDevice, file: []const u8, info: Info) !*sdl.SDL_GPUShader {
     var size: usize = undefined;
-    const data = sdl.SDL_LoadFile(file.ptr, &size) orelse return error.SDL_LoadFile;
+    const data = sdl.SDL_LoadFile(file.ptr, &size) orelse
+        return error.SDL_LoadFile;
     defer sdl.SDL_free(data);
 
     return sdl.SDL_CreateGPUShader(device, &.{

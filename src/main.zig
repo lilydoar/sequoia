@@ -26,6 +26,7 @@ pub fn main() !void {
     // Init render
     // TODO: Create vertex buffer
     const triangle = try tri.init(&context);
+    _ = triangle; // autofix
 
     // Upload static data
 
@@ -55,12 +56,12 @@ pub fn main() !void {
             ) orelse return error.SDL_AcquireGPUCommandBuffer;
             errdefer _ = sdl.SDL_CancelGPUCommandBuffer(commandBuf);
 
-            try triangle.draw(context, commandBuf, .{
-                .primitives = .{
-                    .num_vertices = 3,
-                    .num_instances = 1,
-                },
-            });
+            // try triangle.draw(context, commandBuf, .{
+            //     .primitives = .{
+            //         .num_vertices = 3,
+            //         .num_instances = 1,
+            //     },
+            // });
 
             if (!sdl.SDL_SubmitGPUCommandBuffer(commandBuf)) {
                 return error.SDL_SubmitGPUCommandBuffer;
