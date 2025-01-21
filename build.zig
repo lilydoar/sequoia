@@ -17,7 +17,7 @@ fn main(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
     return exe;
 }
 
-fn library(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
+fn sequoiaLib(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
     const lib = b.addSharedLibrary(.{
         .name = "game",
         .root_module = b.createModule(.{
@@ -26,7 +26,14 @@ fn library(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
             .optimize = opt.optimize,
         }),
     });
+    lib.linkSystemLibrary("SDL3");
     return lib;
+}
+
+pub fn addCheck(b: *std.Build, opt: BuildOptions) void {
+    const check_lib = sequoiaLib(b, opt);
+    const check_step = b.step("check", "Check compilation");
+    check_step.dependOn(&check_lib.step);
 }
 
 pub fn build(b: *std.Build) void {
@@ -38,7 +45,7 @@ pub fn build(b: *std.Build) void {
     const exe = main(b, opt);
     b.installArtifact(exe);
 
-    const lib = library(b, opt);
+    const lib = sequoiaLib(b, opt);
     b.installArtifact(lib);
 
     const run_cmd = b.addRunArtifact(exe);
@@ -50,4 +57,6 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
+
+    addCheck(b, opt);
 }
