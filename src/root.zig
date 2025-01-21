@@ -1,13 +1,28 @@
-//! By convention, root.zig is the root source file when making a library. If
-//! you are making an executable, the convention is to delete this file and
-//! start with main.zig instead.
 const std = @import("std");
-const testing = std.testing;
 
-pub export fn add(a: i32, b: i32) i32 {
-    return a + b;
+const StateExternal = *anyopaque;
+const StateInternal = struct {};
+
+pub export fn init() StateExternal {
+    return undefined;
 }
 
-test "basic add functionality" {
-    try testing.expect(add(3, 7) == 10);
+pub export fn deinit(state: StateExternal) void {
+    _ = state; // autofix
+}
+
+pub export fn reload(state: StateExternal) void {
+    _ = state; // autofix
+    std.debug.print("reload\n", .{});
+}
+
+pub export fn tick(state: StateExternal) bool {
+    _ = state; // autofix
+    std.debug.print("tick\n", .{});
+    return false;
+}
+
+pub export fn draw(state: StateExternal) void {
+    _ = state; // autofix
+    std.debug.print("draw\n", .{});
 }
