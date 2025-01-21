@@ -9,12 +9,12 @@ pub fn main() !void {
     var runner = try Runner.init(lib_path);
     var watcher = try Watcher.init(lib_path);
 
-    var quit = false;
-    while (!quit) {
+    var running = true;
+    while (running) {
         if (try watcher.isModified()) {
             try runner.reload(lib_path);
         }
-        quit = runner.tick();
+        running = runner.tick();
         runner.draw();
     }
 }

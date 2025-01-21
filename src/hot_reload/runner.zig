@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const State = *anyopaque;
-const InitFn = *const fn () State;
+const InitFn = *const fn () ?State;
 const DeinitFn = *const fn (State) void;
 const ReloadFn = *const fn (State) void;
 const TickFn = *const fn (State) bool;
@@ -28,7 +28,7 @@ pub fn init(path: []const u8) !Self {
         .fn_tick = undefined,
     };
     try self.load();
-    self.state = self.fn_init();
+    self.state = self.fn_init() orelse return error.InitFailed;
     return self;
 }
 
