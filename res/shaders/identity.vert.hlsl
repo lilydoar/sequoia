@@ -1,21 +1,18 @@
-struct VSInput
-{
-    float2 position : POSITION;
-    float4 color    : COLOR;
+struct Vertex {
+  float2 pos : POSITION;
+  float4 col : COLOR;
 };
 
-struct VSOutput
-{
-    float4 position : SV_POSITION;
-    float4 color    : COLOR;
+struct Output {
+  float4 pos : SV_POSITION;
+  float4 col : COLOR;
 };
 
-VSOutput main(VSInput input)
-{
-    VSOutput output;
+Output main(Vertex vert) {
+  Output output;
 
-	output.position = float4(input.position, 0.0f, 1.0f);
-    output.color = input.color;
-    
-    return output;
+  output.pos = float4(vert.pos, 0.0f, 1.0f);
+  output.col = vert.col;
+
+  return output;
 }

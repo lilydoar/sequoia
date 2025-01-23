@@ -1,10 +1,6 @@
-struct FSInput
-{
-    float4 position : SV_POSITION;
-    float4 color    : COLOR;
+struct Fragment {
+  float4 position : SV_POSITION;
+  float4 color : COLOR;
 };
 
-float4 main(FSInput input) : SV_TARGET
-{
-    return input.color;
-}
+float4 main(Fragment frag) : SV_TARGET { return frag.color; }
