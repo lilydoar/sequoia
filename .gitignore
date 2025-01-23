@@ -1,5 +1,4 @@
 zig-out/
 .zig-cache/
 
-res/gen/
-src/gen/
+gen/
