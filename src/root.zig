@@ -9,6 +9,9 @@ const App = @import("sequoia/core/app.zig");
 const Window = @import("sequoia/core/window.zig");
 
 const Shader = @import("sequoia/render/shader.zig");
+const VertexBuffer = @import("sequoia/render/vertex_buffer.zig");
+const IndexBuffer = @import("sequoia/render/index_buffer.zig");
+const Pipeline = @import("sequoia/render/pipeline.zig");
 
 const StateOpaque = *anyopaque;
 
@@ -18,8 +21,7 @@ const State = struct {
     rng: std.Random.DefaultPrng,
     ctx: Context,
 
-    vert_shader: Shader,
-    frag_shader: Shader,
+    pipeline: Pipeline,
 };
 
 pub export fn init() ?StateOpaque {
@@ -33,9 +35,7 @@ pub export fn init() ?StateOpaque {
 pub export fn deinit(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
 
-    state.vert_shader.deinit();
-    state.frag_shader.deinit();
-
+    state.pipeline.deinit(state.ctx.device.ptr);
     state.ctx.deinit();
 
     state.frame_alloc.deinit();
@@ -109,7 +109,6 @@ fn gameInit() !*State {
             ctx.device.format,
         ),
     );
-
     const frag_shader = try Shader.fromFile(
         scope_alloc,
         ctx.device.ptr,
@@ -121,14 +120,51 @@ fn gameInit() !*State {
             ctx.device.format,
         ),
     );
+    const vert_buf = try VertexBuffer.init(
+        scope_alloc,
+        ctx.device.ptr,
+        @sizeOf(f32) * 2 * 3,
+        &.{
+            .{
+                .size = @sizeOf(f32) * 2,
+                .format = sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+            },
+            .{
+                .size = @sizeOf(f32) * 4,
+                .format = sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+            },
+        },
+    );
+    const idx_buf = try IndexBuffer.init(ctx.device.ptr, .{
+        .size = @sizeOf(f16) * 3,
+    });
+    const pipeline = try Pipeline.init(
+        static_alloc,
+        scope_alloc,
+        ctx.device.ptr,
+        .{
+            .target = .{
+                .color_target_descriptions = &.{
+                    .format = sdl.SDL_GetGPUSwapchainTextureFormat(
+                        ctx.device.ptr,
+                        ctx.window.ptr,
+                    ),
+                },
+                .num_color_targets = 1,
+            },
+        },
+        vert_shader,
+        frag_shader,
+        &.{vert_buf},
+        idx_buf,
+    );
 
     const state = try static_alloc.create(State);
     state.static_alloc = gpa;
     state.frame_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     state.rng = rng;
     state.ctx = ctx;
-    state.vert_shader = vert_shader;
-    state.frag_shader = frag_shader;
+    state.pipeline = pipeline;
 
     return state;
 }
