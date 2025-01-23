@@ -12,7 +12,7 @@ pub const Descriptor = struct {
 const Self = @This();
 
 descriptor: Descriptor,
-window: *sdl.SDL_Window,
+ptr: *sdl.SDL_Window,
 
 pub fn init(desc: Descriptor) !Self {
     if (!sdl.SDL_Init(sdl.SDL_INIT_VIDEO))
@@ -27,10 +27,10 @@ pub fn init(desc: Descriptor) !Self {
 
     return Self{
         .descriptor = desc,
-        .window = window,
+        .ptr = window,
     };
 }
 
 pub fn deinit(self: Self) void {
-    sdl.SDL_DestroyWindow(self.window);
+    sdl.SDL_DestroyWindow(self.ptr);
 }

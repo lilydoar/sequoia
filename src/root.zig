@@ -4,9 +4,11 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
-const SDLContext = @import("sequoia/core/context.zig");
+const Context = @import("sequoia/core/context.zig");
 const App = @import("sequoia/core/app.zig");
 const Window = @import("sequoia/core/window.zig");
+
+const Shader = @import("sequoia/render/shader.zig");
 
 const StateOpaque = *anyopaque;
 
@@ -14,41 +16,21 @@ const State = struct {
     static_alloc: std.heap.GeneralPurposeAllocator(.{}),
     frame_alloc: std.heap.ArenaAllocator,
     rng: std.Random.DefaultPrng,
-    sdl_ctx: SDLContext,
+    ctx: Context,
 };
 
 pub export fn init() ?StateOpaque {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const static_allocator = gpa.allocator();
-
-    const rng = std.Random.DefaultPrng.init(blk: {
-        var seed: u64 = undefined;
-        std.posix.getrandom(std.mem.asBytes(&seed)) catch return null;
-        break :blk seed;
-    });
-
-    const sdlCtx = SDLContext.init(
-        appInit() catch return null,
-        Window.Descriptor{
-            .title = "Sequoia",
-            .width = 600,
-            .height = 400,
-        },
-    ) catch return null;
-
-    const state = static_allocator.create(State) catch return null;
-    state.static_alloc = gpa;
-    state.frame_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    state.rng = rng;
-    state.sdl_ctx = sdlCtx;
-
+    const state = gameInit() catch |err| {
+        std.debug.print("Failed to initialize game: {}\n", .{err});
+        return null;
+    };
     return @ptrCast(state);
 }
 
 pub export fn deinit(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
 
-    state.sdl_ctx.deinit();
+    state.ctx.deinit();
 
     state.frame_alloc.deinit();
     _ = state.static_alloc.deinit();
@@ -85,6 +67,45 @@ pub export fn draw(state_opaque: StateOpaque) void {
 
 fn fromOpaquePtr(ptr: *anyopaque) *State {
     return @ptrCast(@alignCast(ptr));
+}
+
+fn gameInit() !*State {
+    var scope = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer scope.deinit();
+    const scope_alloc = scope.allocator();
+
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const static_alloc = gpa.allocator();
+
+    const rng = std.Random.DefaultPrng.init(blk: {
+        var seed: u64 = undefined;
+        try std.posix.getrandom(std.mem.asBytes(&seed));
+        break :blk seed;
+    });
+
+    const ctx = try Context.init(
+        try appInit(),
+        Window.Descriptor{
+            .title = "Sequoia",
+            .width = 600,
+            .height = 400,
+        },
+    );
+
+    const vert_shader = try Shader.fromFile(
+        scope_alloc,
+        ctx.device.ptr,
+        "gen/shaders/identity.vert.msl",
+    );
+    defer vert_shader.deinit(ctx.device.ptr);
+
+    const state = try static_alloc.create(State);
+    state.static_alloc = gpa;
+    state.frame_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    state.rng = rng;
+    state.ctx = ctx;
+
+    return state;
 }
 
 fn appInit() !App {
