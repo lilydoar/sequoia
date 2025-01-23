@@ -17,11 +17,14 @@ const State = struct {
     frame_alloc: std.heap.ArenaAllocator,
     rng: std.Random.DefaultPrng,
     ctx: Context,
+
+    vert_shader: Shader,
+    frag_shader: Shader,
 };
 
 pub export fn init() ?StateOpaque {
     const state = gameInit() catch |err| {
-        std.debug.print("Failed to initialize game: {}\n", .{err});
+        std.debug.print("Failed to initialize game: {any}\n", .{err});
         return null;
     };
     return @ptrCast(state);
@@ -29,6 +32,9 @@ pub export fn init() ?StateOpaque {
 
 pub export fn deinit(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
+
+    state.vert_shader.deinit();
+    state.frag_shader.deinit();
 
     state.ctx.deinit();
 
@@ -95,15 +101,34 @@ fn gameInit() !*State {
     const vert_shader = try Shader.fromFile(
         scope_alloc,
         ctx.device.ptr,
-        "gen/shaders/identity.vert.msl",
+        try Shader.buildShaderPath(
+            scope_alloc,
+            "gen/shaders",
+            "identity",
+            sdl.SDL_GPU_SHADERSTAGE_VERTEX,
+            ctx.device.format,
+        ),
     );
-    defer vert_shader.deinit(ctx.device.ptr);
+
+    const frag_shader = try Shader.fromFile(
+        scope_alloc,
+        ctx.device.ptr,
+        try Shader.buildShaderPath(
+            scope_alloc,
+            "gen/shaders",
+            "identity",
+            sdl.SDL_GPU_SHADERSTAGE_FRAGMENT,
+            ctx.device.format,
+        ),
+    );
 
     const state = try static_alloc.create(State);
     state.static_alloc = gpa;
     state.frame_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     state.rng = rng;
     state.ctx = ctx;
+    state.vert_shader = vert_shader;
+    state.frag_shader = frag_shader;
 
     return state;
 }
