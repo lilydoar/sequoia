@@ -6,6 +6,7 @@ setopt nullglob # Prevent error out if no files match a glob
 SHADER_SRC_DIR="res/shaders"
 SHADER_OUT_DIR="res/gen/shaders"
 
+rm -r "$SHADER_OUT_DIR"
 mkdir -p "$SHADER_OUT_DIR"
 
 translate_shaders() {
@@ -21,6 +22,7 @@ translate_shaders() {
         shadercross "$file" -o "$SHADER_OUT_DIR/${filename}.$stage.spv"
         shadercross "$file" -o "$SHADER_OUT_DIR/${filename}.$stage.msl"
         shadercross "$file" -o "$SHADER_OUT_DIR/${filename}.$stage.dxil"
+        shadercross "$file" -o "$SHADER_OUT_DIR/${filename}.$stage.json"
     done
 }
 
