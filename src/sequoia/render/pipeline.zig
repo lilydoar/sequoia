@@ -24,7 +24,7 @@ desc: Descriptor,
 vert_shader: Shader,
 frag_shader: Shader,
 vert_bufs: std.ArrayList(VertexBuffer),
-index_buf: IndexBuffer,
+idx_buf: IndexBuffer,
 ptr: ?*sdl.SDL_GPUGraphicsPipeline = null,
 
 pub fn init(
@@ -45,7 +45,7 @@ pub fn init(
         .vert_shader = vert_shader,
         .frag_shader = frag_shader,
         .vert_bufs = bufs,
-        .index_buf = index_buf,
+        .idx_buf = index_buf,
         .ptr = try buildPipeline(
             scope_alloc,
             device,
@@ -63,19 +63,17 @@ pub fn deinit(self: Self, device: *sdl.SDL_GPUDevice) void {
     self.frag_shader.deinit(device);
     for (self.vert_bufs.items) |buf| buf.deinit(device);
     self.vert_bufs.deinit();
-    self.index_buf.deinit(device);
+    self.idx_buf.deinit(device);
 }
 
-pub fn bind(
-    self: Self,
-    device: *sdl.SDL_GPUDevice,
-    pass: *sdl.SDL_GPURenderPass,
-) void {
-    _ = self; // autofix
-    _ = device; // autofix
-    _ = pass; // autofix
+pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass) void {
+    sdl.SDL_BindGPUGraphicsPipeline(pass, self.ptr);
+    for (self.vert_bufs.items, 0..) |buf, i| buf.bind(pass, @intCast(i));
+    self.idx_buf.bind(pass);
+}
 
-    // TODO
+pub fn draw(self: Self, pass: *sdl.SDL_GPURenderPass) void {
+    sdl.SDL_DrawGPUIndexedPrimitives(pass, self.idx_buf.count(), 1, 0, 0, 0);
 }
 
 fn buildPipeline(

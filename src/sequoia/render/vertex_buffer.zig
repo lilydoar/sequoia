@@ -12,7 +12,7 @@ pub const Descriptor = struct {
         format: sdl.SDL_GPUVertexElementFormat,
     };
 
-    size: u32,
+    capacity: u32,
     attribs: std.ArrayList(Attribute),
 
     pub fn pitch(self: Descriptor) u32 {
@@ -28,11 +28,12 @@ const Self = @This();
 
 desc: Descriptor,
 ptr: *sdl.SDL_GPUBuffer,
+size: u32,
 
 pub fn init(
     alloc: std.mem.Allocator,
     device: *sdl.SDL_GPUDevice,
-    size: u32,
+    capacity: u32,
     attribs: []const Descriptor.Attribute,
 ) !Self {
     var attributes = std.ArrayList(Descriptor.Attribute).init(alloc);
@@ -40,13 +41,14 @@ pub fn init(
 
     return Self{
         .desc = .{
-            .size = size,
+            .capacity = capacity,
             .attribs = attributes,
         },
         .ptr = sdl.SDL_CreateGPUBuffer(device, &.{
             .usage = sdl.SDL_GPU_BUFFERUSAGE_VERTEX,
-            .size = size,
+            .size = capacity,
         }) orelse return error.CreateGPUBuffer,
+        .size = 0,
     };
 }
 
@@ -59,9 +61,10 @@ pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass, slot: u32) void {
     sdl.SDL_BindGPUVertexBuffers(pass, slot, &.{ .buffer = self.ptr }, 1);
 }
 
-pub fn upload(self: Self, queue: *TransferQueue, data: []u8) !void {
+pub fn upload(self: *Self, queue: *TransferQueue, data: []u8) !void {
     try queue.stage(.{
         .data = data,
         .location = .{ .buf = self.ptr },
     });
+    self.size = @intCast(data.len);
 }

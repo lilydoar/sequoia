@@ -3,6 +3,8 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
+const MB = 1024 * 1024;
+
 const Item = struct {
     data: []u8,
     location: union(enum) {
@@ -15,11 +17,16 @@ const Self = @This();
 items: std.ArrayList(Item),
 buf: *sdl.SDL_GPUTransferBuffer,
 
+// TODO: I think I want to turn this transfer_queue struct into just a
+// TransferBuffer struct. Will still have a nice API. And will better
+// fit the pattern I've been following to wrap SDL
+
 pub fn init(alloc: std.mem.Allocator, device: *sdl.SDL_GPUDevice) !Self {
     return .{
         .items = std.ArrayList(Item).init(alloc),
         .buf = sdl.SDL_CreateGPUTransferBuffer(device, &.{
             .usage = sdl.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
+            .size = MB,
         }) orelse return error.SDL_CreateGPUTransferBuffer,
     };
 }
@@ -62,6 +69,10 @@ fn uploadItem(
 ) !void {
     const item = popFront(&self.items) orelse return;
 
+    if (item.data.len > MB) {
+        return error.DataTooLarge;
+    }
+
     const transfer = sdl.SDL_MapGPUTransferBuffer(
         device,
         self.buf,
@@ -80,7 +91,10 @@ fn uploadItem(
             sdl.SDL_UploadToGPUBuffer(
                 pass,
                 &.{ .transfer_buffer = self.buf },
-                &.{ .buffer = buf },
+                &.{
+                    .buffer = buf,
+                    .size = @intCast(item.data.len),
+                },
                 true,
             );
         },

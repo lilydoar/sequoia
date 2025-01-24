@@ -76,7 +76,10 @@ pub export fn tick(state_opaque: StateOpaque) bool {
 
 pub export fn draw(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
-    _ = state; // autofix
+
+    gameDraw(state) catch |err| {
+        std.debug.print("Failed to draw game: {any}\n", .{err});
+    };
 }
 
 fn gameInit() !*State {
@@ -99,6 +102,7 @@ fn gameInit() !*State {
             .title = "Sequoia",
             .width = 600,
             .height = 400,
+            // .flags = 0x0000000000000020, // Resizeable
         },
     );
 
@@ -140,9 +144,9 @@ fn gameInit() !*State {
         },
     );
     const idx_buf = try IndexBuffer.init(ctx.device.ptr, .{
-        .size = @sizeOf(f16) * 3,
+        .capacity = @sizeOf(f16) * 3,
     });
-    const pipeline = try Pipeline.init(
+    var pipeline = try Pipeline.init(
         static_alloc,
         scope_alloc,
         ctx.device.ptr,
@@ -165,7 +169,7 @@ fn gameInit() !*State {
 
     var queue = try TransferQueue.init(static_alloc, ctx.device.ptr);
 
-    try loadStaticData(ctx.device, pipeline, &queue);
+    try loadStaticData(ctx.device, &pipeline, &queue);
 
     const state = try static_alloc.create(State);
     state.static_alloc = gpa;
@@ -182,9 +186,43 @@ fn gameInit() !*State {
 fn gameReload(state: *State) !void {
     try loadStaticData(
         state.ctx.device,
-        state.pipeline,
+        &state.pipeline,
         &state.transfer_queue,
     );
+}
+
+fn gameDraw(state: *State) !void {
+    const cmd_buf = sdl.SDL_AcquireGPUCommandBuffer(state.ctx.device.ptr) orelse
+        return error.AcquireGPUCommandBuffer;
+    errdefer _ = sdl.SDL_CancelGPUCommandBuffer(cmd_buf);
+
+    var swapchain: ?*sdl.SDL_GPUTexture = null;
+    if (!sdl.SDL_WaitAndAcquireGPUSwapchainTexture(
+        cmd_buf,
+        state.ctx.window.ptr,
+        &swapchain,
+        null,
+        null,
+    )) return error.WaitAndAcquireGPUSwapchainTexture;
+
+    const pass = sdl.SDL_BeginGPURenderPass(
+        cmd_buf,
+        &.{
+            .texture = swapchain,
+            .clear_color = .{ .r = 1, .g = 1, .b = 1, .a = 1 },
+            .load_op = sdl.SDL_GPU_LOADOP_CLEAR,
+            .store_op = sdl.SDL_GPU_STOREOP_STORE,
+        },
+        1,
+        null,
+    ) orelse return error.BeginGPURenderPass;
+
+    state.pipeline.bind(pass);
+    state.pipeline.draw(pass);
+
+    sdl.SDL_EndGPURenderPass(pass);
+    if (!sdl.SDL_SubmitGPUCommandBuffer(cmd_buf))
+        return error.SubmitGPUCommandBuffer;
 }
 
 fn appInit() !App {
@@ -194,19 +232,16 @@ fn appInit() !App {
     return app;
 }
 
-fn loadStaticData(device: Device, pipeline: Pipeline, queue: *TransferQueue) !void {
-    const vert_buf = pipeline.vert_bufs.items[0];
-    const idx_buf = pipeline.index_buf;
-
+fn loadStaticData(device: Device, pipeline: *Pipeline, queue: *TransferQueue) !void {
     var vertices = [_]Vertex{
         .{ .pos = .{ -1, -1 }, .color = .{ 1, 0, 0, 1 } },
         .{ .pos = .{ 0, 1 }, .color = .{ 0, 1, 0, 1 } },
         .{ .pos = .{ 1, -1 }, .color = .{ 0, 0, 1, 1 } },
     };
-    try vert_buf.upload(queue, std.mem.sliceAsBytes(&vertices));
+    try pipeline.vert_bufs.items[0].upload(queue, std.mem.sliceAsBytes(&vertices));
 
     var indices = [_]u16{ 0, 1, 2 };
-    try idx_buf.upload(queue, std.mem.sliceAsBytes(&indices));
+    try pipeline.idx_buf.upload(queue, std.mem.sliceAsBytes(&indices));
 
     try queue.flush(device.ptr);
 }
