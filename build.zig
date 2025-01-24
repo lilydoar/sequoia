@@ -7,7 +7,7 @@ const BuildOptions = struct {
 
 fn main(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
     const exe = b.addExecutable(.{
-        .name = "sequoia",
+        .name = "game",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = opt.target,
@@ -19,7 +19,7 @@ fn main(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
 
 fn sequoiaLib(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
     const lib = b.addSharedLibrary(.{
-        .name = "game",
+        .name = "sequoia",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/root.zig"),
             .target = opt.target,
