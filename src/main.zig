@@ -3,7 +3,7 @@ const std = @import("std");
 const Runner = @import("hot_reload/runner.zig");
 const Watcher = @import("hot_reload/watcher.zig");
 
-const lib_path = "zig-out/lib/libgame.dylib";
+const lib_path = "zig-out/lib/libsequoia.dylib";
 
 pub fn main() !void {
     var runner = try Runner.init(lib_path);

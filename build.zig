@@ -26,7 +26,14 @@ fn sequoiaLib(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
             .optimize = opt.optimize,
         }),
     });
-    lib.linkSystemLibrary("SDL3");
+    const sdl_dep = b.dependency("sdl", .{
+        .target = opt.target,
+        .optimize = opt.optimize,
+        .preferred_link_mode = .dynamic,
+    });
+    const sdl_lib = sdl_dep.artifact("SDL3");
+    lib.root_module.linkLibrary(sdl_lib);
+
     return lib;
 }
 
