@@ -62,6 +62,8 @@ pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass, slot: u32) void {
 }
 
 pub fn upload(self: *Self, queue: *TransferQueue, data: []u8) !void {
+    if (@as(u32, @intCast(data.len)) > self.desc.capacity)
+        return error.BufferTooSmall;
     try queue.stage(.{
         .data = data,
         .location = .{ .buf = self.ptr },

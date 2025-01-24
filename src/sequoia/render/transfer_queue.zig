@@ -5,6 +5,10 @@ const sdl = @cImport({
 
 const MB = 1024 * 1024;
 
+pub const Descriptor = struct {
+    capacity: u32,
+};
+
 const Item = struct {
     data: []u8,
     location: union(enum) {
@@ -14,6 +18,7 @@ const Item = struct {
 
 const Self = @This();
 
+desc: Descriptor,
 items: std.ArrayList(Item),
 buf: *sdl.SDL_GPUTransferBuffer,
 
@@ -21,12 +26,17 @@ buf: *sdl.SDL_GPUTransferBuffer,
 // TransferBuffer struct. Will still have a nice API. And will better
 // fit the pattern I've been following to wrap SDL
 
-pub fn init(alloc: std.mem.Allocator, device: *sdl.SDL_GPUDevice) !Self {
+pub fn init(
+    alloc: std.mem.Allocator,
+    device: *sdl.SDL_GPUDevice,
+    desc: Descriptor,
+) !Self {
     return .{
+        .desc = desc,
         .items = std.ArrayList(Item).init(alloc),
         .buf = sdl.SDL_CreateGPUTransferBuffer(device, &.{
             .usage = sdl.SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD,
-            .size = MB,
+            .size = desc.capacity,
         }) orelse return error.SDL_CreateGPUTransferBuffer,
     };
 }
@@ -69,8 +79,8 @@ fn uploadItem(
 ) !void {
     const item = popFront(&self.items) orelse return;
 
-    if (item.data.len > MB) {
-        return error.DataTooLarge;
+    if (@as(u32, @intCast(item.data.len)) > self.desc.capacity) {
+        return error.BufferTooSmall;
     }
 
     const transfer = sdl.SDL_MapGPUTransferBuffer(

@@ -16,6 +16,8 @@ const Pipeline = @import("sequoia/render/pipeline.zig");
 const TransferQueue = @import("sequoia/render/transfer_queue.zig");
 const Vertex = @import("sequoia/render/vertices.zig").ColoredVertex;
 
+const MB = 1024 * 1024;
+
 const StateOpaque = *anyopaque;
 
 const State = struct {
@@ -102,7 +104,9 @@ fn gameInit() !*State {
             .title = "Sequoia",
             .width = 600,
             .height = 400,
-            // .flags = 0x0000000000000020, // Resizeable
+            // Resizeable
+            // Always on top
+            .flags = 0x0000000000000020 | 0x0000000000010000,
         },
     );
 
@@ -131,7 +135,7 @@ fn gameInit() !*State {
     const vert_buf = try VertexBuffer.init(
         scope_alloc,
         ctx.device.ptr,
-        @sizeOf(f32) * 2 * 3,
+        @sizeOf(Vertex) * 4,
         &.{
             .{
                 .size = @sizeOf(f32) * 2,
@@ -144,7 +148,7 @@ fn gameInit() !*State {
         },
     );
     const idx_buf = try IndexBuffer.init(ctx.device.ptr, .{
-        .capacity = @sizeOf(f16) * 3,
+        .capacity = @sizeOf(f16) * 6,
     });
     var pipeline = try Pipeline.init(
         static_alloc,
@@ -167,7 +171,11 @@ fn gameInit() !*State {
         idx_buf,
     );
 
-    var queue = try TransferQueue.init(static_alloc, ctx.device.ptr);
+    var queue = try TransferQueue.init(
+        static_alloc,
+        ctx.device.ptr,
+        .{ .capacity = MB },
+    );
 
     try loadStaticData(ctx.device, &pipeline, &queue);
 
@@ -209,7 +217,7 @@ fn gameDraw(state: *State) !void {
         cmd_buf,
         &.{
             .texture = swapchain,
-            .clear_color = .{ .r = 1, .g = 1, .b = 1, .a = 1 },
+            .clear_color = .{ .r = 0, .g = 0, .b = 0, .a = 1 },
             .load_op = sdl.SDL_GPU_LOADOP_CLEAR,
             .store_op = sdl.SDL_GPU_STOREOP_STORE,
         },
@@ -234,13 +242,14 @@ fn appInit() !App {
 
 fn loadStaticData(device: Device, pipeline: *Pipeline, queue: *TransferQueue) !void {
     var vertices = [_]Vertex{
-        .{ .pos = .{ -1, -1 }, .color = .{ 1, 0, 0, 1 } },
+        .{ .pos = .{ -1, -1 }, .color = .{ 0, 1, 0, 1 } },
         .{ .pos = .{ 0, 1 }, .color = .{ 0, 1, 0, 1 } },
-        .{ .pos = .{ 1, -1 }, .color = .{ 0, 0, 1, 1 } },
+        .{ .pos = .{ 0.72, -0.24 }, .color = .{ 1, 0, 1, 1 } },
+        .{ .pos = .{ -0.8, 0.8 }, .color = .{ 1, 1, 1, 1 } },
     };
     try pipeline.vert_bufs.items[0].upload(queue, std.mem.sliceAsBytes(&vertices));
 
-    var indices = [_]u16{ 0, 1, 2 };
+    var indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
     try pipeline.idx_buf.upload(queue, std.mem.sliceAsBytes(&indices));
 
     try queue.flush(device.ptr);

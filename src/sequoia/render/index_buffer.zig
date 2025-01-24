@@ -7,6 +7,8 @@ const TransferQueue = @import("transfer_queue.zig");
 
 pub const Descriptor = struct {
     capacity: u32,
+    // FIXME: There is no validation that the data being passed in matches the
+    // buffer's element size. Maybe element size is compile time parameter?
     element_size: sdl.SDL_GPUIndexElementSize =
         sdl.SDL_GPU_INDEXELEMENTSIZE_16BIT,
 };
@@ -47,6 +49,8 @@ pub fn bind(
 }
 
 pub fn upload(self: *Self, queue: *TransferQueue, data: []u8) !void {
+    if (@as(u32, @intCast(data.len)) > self.desc.capacity)
+        return error.BufferTooSmall;
     try queue.stage(.{
         .data = data,
         .location = .{ .buf = self.ptr },
