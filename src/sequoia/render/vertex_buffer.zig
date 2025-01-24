@@ -3,6 +3,8 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
+const TransferQueue = @import("transfer_queue.zig");
+
 pub const Descriptor = struct {
     // FIXME: This doesn't need to be a struct. The size can be calculated from the format
     const Attribute = struct {
@@ -53,6 +55,13 @@ pub fn deinit(self: Self, device: *sdl.SDL_GPUDevice) void {
     self.desc.attribs.deinit();
 }
 
-pub fn bind(self: *Self, pass: *sdl.SDL_GPURenderPass, slot: u32) void {
+pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass, slot: u32) void {
     sdl.SDL_BindGPUVertexBuffers(pass, slot, &.{ .buffer = self.ptr }, 1);
+}
+
+pub fn upload(self: Self, queue: *TransferQueue, data: []u8) !void {
+    try queue.stage(.{
+        .data = data,
+        .location = .{ .buf = self.ptr },
+    });
 }

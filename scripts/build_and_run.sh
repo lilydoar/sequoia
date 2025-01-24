@@ -11,9 +11,9 @@ watchexec -e zig zig build &
 PID=$!
 
 if [ $DEBUG -eq 1 ]; then
-    lldb ./zig-out/bin/sequoia
+    lldb ./zig-out/bin/game
 else 
-    ./zig-out/bin/sequoia
+    ./zig-out/bin/game
 fi
 
 kill $PID

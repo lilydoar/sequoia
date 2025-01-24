@@ -7,11 +7,14 @@ const sdl = @cImport({
 const Context = @import("sequoia/core/context.zig");
 const App = @import("sequoia/core/app.zig");
 const Window = @import("sequoia/core/window.zig");
+const Device = @import("sequoia/core/device.zig");
 
 const Shader = @import("sequoia/render/shader.zig");
 const VertexBuffer = @import("sequoia/render/vertex_buffer.zig");
 const IndexBuffer = @import("sequoia/render/index_buffer.zig");
 const Pipeline = @import("sequoia/render/pipeline.zig");
+const TransferQueue = @import("sequoia/render/transfer_queue.zig");
+const Vertex = @import("sequoia/render/vertices.zig").ColoredVertex;
 
 const StateOpaque = *anyopaque;
 
@@ -22,6 +25,7 @@ const State = struct {
     ctx: Context,
 
     pipeline: Pipeline,
+    transfer_queue: TransferQueue,
 };
 
 pub export fn init() ?StateOpaque {
@@ -35,6 +39,7 @@ pub export fn init() ?StateOpaque {
 pub export fn deinit(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
 
+    state.transfer_queue.deinit(state.ctx.device.ptr);
     state.pipeline.deinit(state.ctx.device.ptr);
     state.ctx.deinit();
 
@@ -44,7 +49,10 @@ pub export fn deinit(state_opaque: StateOpaque) void {
 
 pub export fn reload(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
-    _ = state; // autofix
+
+    gameReload(state) catch |err| {
+        std.debug.print("Failed to reload game: {any}\n", .{err});
+    };
 }
 
 pub export fn tick(state_opaque: StateOpaque) bool {
@@ -69,10 +77,6 @@ pub export fn tick(state_opaque: StateOpaque) bool {
 pub export fn draw(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
     _ = state; // autofix
-}
-
-fn fromOpaquePtr(ptr: *anyopaque) *State {
-    return @ptrCast(@alignCast(ptr));
 }
 
 fn gameInit() !*State {
@@ -159,14 +163,28 @@ fn gameInit() !*State {
         idx_buf,
     );
 
+    var queue = try TransferQueue.init(static_alloc, ctx.device.ptr);
+
+    try loadStaticData(ctx.device, pipeline, &queue);
+
     const state = try static_alloc.create(State);
     state.static_alloc = gpa;
     state.frame_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     state.rng = rng;
     state.ctx = ctx;
+
     state.pipeline = pipeline;
+    state.transfer_queue = queue;
 
     return state;
+}
+
+fn gameReload(state: *State) !void {
+    try loadStaticData(
+        state.ctx.device,
+        state.pipeline,
+        &state.transfer_queue,
+    );
 }
 
 fn appInit() !App {
@@ -174,4 +192,25 @@ fn appInit() !App {
     try app.withVersion("0.1.0");
     try app.withIdentifier("com.sequoia");
     return app;
+}
+
+fn loadStaticData(device: Device, pipeline: Pipeline, queue: *TransferQueue) !void {
+    const vert_buf = pipeline.vert_bufs.items[0];
+    const idx_buf = pipeline.index_buf;
+
+    var vertices = [_]Vertex{
+        .{ .pos = .{ -1, -1 }, .color = .{ 1, 0, 0, 1 } },
+        .{ .pos = .{ 0, 1 }, .color = .{ 0, 1, 0, 1 } },
+        .{ .pos = .{ 1, -1 }, .color = .{ 0, 0, 1, 1 } },
+    };
+    try vert_buf.upload(queue, std.mem.sliceAsBytes(&vertices));
+
+    var indices = [_]u16{ 0, 1, 2 };
+    try idx_buf.upload(queue, std.mem.sliceAsBytes(&indices));
+
+    try queue.flush(device.ptr);
+}
+
+fn fromOpaquePtr(ptr: *anyopaque) *State {
+    return @ptrCast(@alignCast(ptr));
 }

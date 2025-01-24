@@ -3,6 +3,8 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
+const KB: usize = 1024;
+
 pub const Descriptor = struct {
     pub const Bindings = struct {
         samplers: u32,
@@ -15,8 +17,6 @@ pub const Descriptor = struct {
     stage: sdl.SDL_GPUShaderStage,
     bindings: Bindings,
 };
-
-const KB: usize = 1024;
 
 const Self = @This();
 

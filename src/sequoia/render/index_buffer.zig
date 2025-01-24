@@ -3,6 +3,8 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
+const TransferQueue = @import("transfer_queue.zig");
+
 pub const Descriptor = struct {
     size: u32,
     element_size: sdl.SDL_GPUIndexElementSize =
@@ -40,4 +42,11 @@ pub fn bind(
         &.{ .buffer = self.ptr },
         self.desc.element_size,
     );
+}
+
+pub fn upload(self: Self, queue: *TransferQueue, data: []u8) !void {
+    try queue.stage(.{
+        .data = data,
+        .location = .{ .buf = self.ptr },
+    });
 }
