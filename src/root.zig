@@ -139,14 +139,8 @@ fn gameInit() !*State {
         ctx.device.ptr,
         @sizeOf(Vertex) * 4,
         &.{
-            .{
-                .size = @sizeOf(f32) * 2,
-                .format = sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-            },
-            .{
-                .size = @sizeOf(f32) * 4,
-                .format = sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-            },
+            sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+            sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
         },
     );
     const idx_buf = try IndexBuffer.init(ctx.device.ptr, .{

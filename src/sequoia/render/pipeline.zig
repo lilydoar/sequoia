@@ -98,14 +98,14 @@ fn buildPipeline(
         });
 
         var offset: u32 = 0;
-        for (buf.desc.attribs.items, 0..) |attr, loc| {
+        for (buf.desc.attributes.items, 0..) |attr, loc| {
             try attribs.append(.{
                 .location = @intCast(loc),
                 .buffer_slot = @intCast(slot),
-                .format = attr.format,
+                .format = attr,
                 .offset = offset,
             });
-            offset += attr.size;
+            offset += VertexBuffer.vertexElementSize(attr);
         }
     }
 

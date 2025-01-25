@@ -6,19 +6,13 @@ const sdl = @cImport({
 const TransferBuffer = @import("transfer_buffer.zig");
 
 pub const Descriptor = struct {
-    // FIXME: This doesn't need to be a struct. The size can be calculated from the format
-    const Attribute = struct {
-        size: u32,
-        format: sdl.SDL_GPUVertexElementFormat,
-    };
-
     capacity: u32,
-    attribs: std.ArrayList(Attribute),
+    attributes: std.ArrayList(sdl.SDL_GPUVertexElementFormat),
 
     pub fn pitch(self: Descriptor) u32 {
         var size: u32 = 0;
-        for (self.attribs.items) |attr| {
-            size += attr.size;
+        for (self.attributes.items) |attr| {
+            size += vertexElementSize(attr);
         }
         return size;
     }
@@ -34,15 +28,15 @@ pub fn init(
     alloc: std.mem.Allocator,
     device: *sdl.SDL_GPUDevice,
     capacity: u32,
-    attribs: []const Descriptor.Attribute,
+    attribs: []const sdl.SDL_GPUVertexElementFormat,
 ) !Self {
-    var attributes = std.ArrayList(Descriptor.Attribute).init(alloc);
+    var attributes = std.ArrayList(sdl.SDL_GPUVertexElementFormat).init(alloc);
     try attributes.appendSlice(attribs);
 
     return Self{
         .desc = .{
             .capacity = capacity,
-            .attribs = attributes,
+            .attributes = attributes,
         },
         .ptr = sdl.SDL_CreateGPUBuffer(device, &.{
             .usage = sdl.SDL_GPU_BUFFERUSAGE_VERTEX,
@@ -54,7 +48,7 @@ pub fn init(
 
 pub fn deinit(self: Self, device: *sdl.SDL_GPUDevice) void {
     sdl.SDL_ReleaseGPUBuffer(device, self.ptr);
-    self.desc.attribs.deinit();
+    self.desc.attributes.deinit();
 }
 
 pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass, slot: u32) void {
@@ -69,4 +63,22 @@ pub fn upload(self: *Self, queue: *TransferBuffer, data: []u8) !void {
         .location = .{ .buf = self.ptr },
     });
     self.size = @intCast(data.len);
+}
+
+pub fn vertexElementSize(format: sdl.SDL_GPUVertexElementFormat) u32 {
+    return switch (format) {
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_INT => @sizeOf(i32) * 1,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_INT2 => @sizeOf(i32) * 2,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_INT3 => @sizeOf(i32) * 3,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_INT4 => @sizeOf(i32) * 4,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_UINT => @sizeOf(u32) * 1,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_UINT2 => @sizeOf(u32) * 2,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_UINT3 => @sizeOf(u32) * 3,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_UINT4 => @sizeOf(u32) * 4,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT => @sizeOf(f32) * 1,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2 => @sizeOf(f32) * 2,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3 => @sizeOf(f32) * 3,
+        sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4 => @sizeOf(f32) * 4,
+        else => unreachable,
+    };
 }
