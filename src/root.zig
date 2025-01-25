@@ -26,8 +26,9 @@ const State = struct {
     rng: std.Random.DefaultPrng,
     ctx: Context,
 
-    pipeline: Pipeline,
     transfer_buf: TransferBuffer,
+    static_pipeline: Pipeline,
+    dynamic_pipeline: Pipeline,
 };
 
 pub export fn init() ?StateOpaque {
@@ -42,7 +43,7 @@ pub export fn deinit(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
 
     state.transfer_buf.deinit(state.ctx.device.ptr);
-    state.pipeline.deinit(state.ctx.device.ptr);
+    state.static_pipeline.deinit(state.ctx.device.ptr);
     state.ctx.deinit();
 
     state.frame_alloc.deinit();
@@ -59,21 +60,11 @@ pub export fn reload(state_opaque: StateOpaque) void {
 
 pub export fn tick(state_opaque: StateOpaque) bool {
     const state = fromOpaquePtr(state_opaque);
-    _ = state; // autofix
 
-    var event: sdl.SDL_Event = undefined;
-    while (sdl.SDL_PollEvent(&event)) {
-        if (event.type == sdl.SDL_EVENT_QUIT) {
-            return false;
-        }
-        if (event.type == sdl.SDL_EVENT_KEY_DOWN and
-            event.key.key == sdl.SDLK_ESCAPE)
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return gameTick(state) catch |err| {
+        std.debug.print("Failed to tick game: {any}\n", .{err});
+        return false;
+    };
 }
 
 pub export fn draw(state_opaque: StateOpaque) void {
@@ -112,41 +103,13 @@ fn gameInit() !*State {
         },
     );
 
-    const vert_shader = try Shader.fromFile(
-        scope_alloc,
+    var transfer_buf = try TransferBuffer.init(
+        static_alloc,
         ctx.device.ptr,
-        try Shader.buildShaderPath(
-            scope_alloc,
-            "gen/shaders",
-            "identity",
-            sdl.SDL_GPU_SHADERSTAGE_VERTEX,
-            ctx.device.format,
-        ),
+        .{ .capacity = MB },
     );
-    const frag_shader = try Shader.fromFile(
-        scope_alloc,
-        ctx.device.ptr,
-        try Shader.buildShaderPath(
-            scope_alloc,
-            "gen/shaders",
-            "identity",
-            sdl.SDL_GPU_SHADERSTAGE_FRAGMENT,
-            ctx.device.format,
-        ),
-    );
-    const vert_buf = try VertexBuffer.init(
-        scope_alloc,
-        ctx.device.ptr,
-        @sizeOf(Vertex) * 4,
-        &.{
-            sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-            sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
-        },
-    );
-    const idx_buf = try IndexBuffer.init(ctx.device.ptr, .{
-        .capacity = @sizeOf(f16) * 6,
-    });
-    var pipeline = try Pipeline.init(
+
+    var static_pipeline = try Pipeline.init(
         static_alloc,
         scope_alloc,
         ctx.device.ptr,
@@ -161,28 +124,103 @@ fn gameInit() !*State {
                 .num_color_targets = 1,
             },
         },
-        vert_shader,
-        frag_shader,
-        &.{vert_buf},
-        idx_buf,
+        try Shader.fromFile(
+            scope_alloc,
+            ctx.device.ptr,
+            try Shader.buildShaderPath(
+                scope_alloc,
+                "gen/shaders",
+                "identity",
+                sdl.SDL_GPU_SHADERSTAGE_VERTEX,
+                ctx.device.format,
+            ),
+        ),
+        try Shader.fromFile(
+            scope_alloc,
+            ctx.device.ptr,
+            try Shader.buildShaderPath(
+                scope_alloc,
+                "gen/shaders",
+                "identity",
+                sdl.SDL_GPU_SHADERSTAGE_FRAGMENT,
+                ctx.device.format,
+            ),
+        ),
+        &.{try VertexBuffer.init(
+            scope_alloc,
+            ctx.device.ptr,
+            @sizeOf(Vertex) * 4,
+            &.{
+                sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+                sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+            },
+        )},
+        try IndexBuffer.init(ctx.device.ptr, .{
+            .capacity = @sizeOf(f16) * 6,
+        }),
     );
 
-    var transfer_buf = try TransferBuffer.init(
+    try loadStaticData(ctx.device, &static_pipeline, &transfer_buf);
+
+    const dynamic_pipeline = try Pipeline.init(
         static_alloc,
+        scope_alloc,
         ctx.device.ptr,
-        .{ .capacity = MB },
+        .{
+            .target = .{
+                .color_target_descriptions = &.{
+                    .format = sdl.SDL_GetGPUSwapchainTextureFormat(
+                        ctx.device.ptr,
+                        ctx.window.ptr,
+                    ),
+                },
+                .num_color_targets = 1,
+            },
+        },
+        try Shader.fromFile(
+            scope_alloc,
+            ctx.device.ptr,
+            try Shader.buildShaderPath(
+                scope_alloc,
+                "gen/shaders",
+                "identity",
+                sdl.SDL_GPU_SHADERSTAGE_VERTEX,
+                ctx.device.format,
+            ),
+        ),
+        try Shader.fromFile(
+            scope_alloc,
+            ctx.device.ptr,
+            try Shader.buildShaderPath(
+                scope_alloc,
+                "gen/shaders",
+                "identity",
+                sdl.SDL_GPU_SHADERSTAGE_FRAGMENT,
+                ctx.device.format,
+            ),
+        ),
+        &.{try VertexBuffer.init(
+            scope_alloc,
+            ctx.device.ptr,
+            @sizeOf(Vertex) * 4,
+            &.{
+                sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
+                sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+            },
+        )},
+        try IndexBuffer.init(ctx.device.ptr, .{
+            .capacity = @sizeOf(f16) * 6,
+        }),
     );
-
-    try loadStaticData(ctx.device, &pipeline, &transfer_buf);
-
     const state = try static_alloc.create(State);
     state.static_alloc = gpa;
     state.frame_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     state.rng = rng;
     state.ctx = ctx;
 
-    state.pipeline = pipeline;
     state.transfer_buf = transfer_buf;
+    state.static_pipeline = static_pipeline;
+    state.dynamic_pipeline = dynamic_pipeline;
 
     return state;
 }
@@ -190,9 +228,31 @@ fn gameInit() !*State {
 fn gameReload(state: *State) !void {
     try loadStaticData(
         state.ctx.device,
-        &state.pipeline,
+        &state.static_pipeline,
         &state.transfer_buf,
     );
+}
+
+fn gameTick(state: *State) !bool {
+    var event: sdl.SDL_Event = undefined;
+    while (sdl.SDL_PollEvent(&event)) {
+        if (event.type == sdl.SDL_EVENT_QUIT) {
+            return false;
+        }
+        if (event.type == sdl.SDL_EVENT_KEY_DOWN and
+            event.key.key == sdl.SDLK_ESCAPE)
+        {
+            return false;
+        }
+    }
+
+    try loadDynamicData(
+        state.ctx.device,
+        &state.dynamic_pipeline,
+        &state.transfer_buf,
+    );
+
+    return true;
 }
 
 fn gameDraw(state: *State) !void {
@@ -221,8 +281,11 @@ fn gameDraw(state: *State) !void {
         null,
     ) orelse return error.BeginGPURenderPass;
 
-    state.pipeline.bind(pass);
-    state.pipeline.draw(pass);
+    state.static_pipeline.bind(pass);
+    state.static_pipeline.draw(pass);
+
+    state.dynamic_pipeline.bind(pass);
+    state.dynamic_pipeline.draw(pass);
 
     sdl.SDL_EndGPURenderPass(pass);
     if (!sdl.SDL_SubmitGPUCommandBuffer(cmd_buf))
@@ -246,6 +309,25 @@ fn loadStaticData(
         .{ .pos = .{ 0, 1 }, .color = .{ 0, 1, 0, 1 } },
         .{ .pos = .{ 0.72, -0.24 }, .color = .{ 1, 0, 1, 1 } },
         .{ .pos = .{ -0.8, 0.8 }, .color = .{ 1, 1, 1, 1 } },
+    };
+    try pipeline.vert_bufs.items[0].upload(transfer_buf, std.mem.sliceAsBytes(&vertices));
+
+    var indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
+    try pipeline.idx_buf.upload(transfer_buf, std.mem.sliceAsBytes(&indices));
+
+    try transfer_buf.flush(device.ptr);
+}
+
+fn loadDynamicData(
+    device: Device,
+    pipeline: *Pipeline,
+    transfer_buf: *TransferBuffer,
+) !void {
+    var vertices = [_]Vertex{
+        .{ .pos = .{ -0.2, -0.8 }, .color = .{ 0.4, 1, 0, 1 } },
+        .{ .pos = .{ 0.4, 0.2 }, .color = .{ 0, 1, 0.8, 1 } },
+        .{ .pos = .{ 0.65, -0.46 }, .color = .{ 0.2, 0, 1, 1 } },
+        .{ .pos = .{ -0.7, 0.5 }, .color = .{ 1, 0.5, 1, 1 } },
     };
     try pipeline.vert_bufs.items[0].upload(transfer_buf, std.mem.sliceAsBytes(&vertices));
 
