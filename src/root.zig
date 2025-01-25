@@ -104,9 +104,11 @@ fn gameInit() !*State {
             .title = "Sequoia",
             .width = 600,
             .height = 400,
-            // Resizeable
-            // Always on top
-            .flags = 0x0000000000000020 | 0x0000000000010000,
+            .flags = .{
+                .resizable = true,
+                .always_on_top = true,
+                .borderless = false,
+            },
         },
     );
 

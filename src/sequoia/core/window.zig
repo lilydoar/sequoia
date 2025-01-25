@@ -3,10 +3,26 @@ const sdl = @cImport({
 });
 
 pub const Descriptor = struct {
+    pub const Flags = struct {
+        fullscreen: bool = false,
+        borderless: bool = false,
+        resizable: bool = false,
+        always_on_top: bool = false,
+
+        fn toUint64(self: Flags) u64 {
+            var flags: u64 = 0;
+            if (self.fullscreen) flags |= 0x0000000000000001;
+            if (self.borderless) flags |= 0x0000000000000010;
+            if (self.resizable) flags |= 0x0000000000000020;
+            if (self.always_on_top) flags |= 0x0000000000010000;
+            return flags;
+        }
+    };
+
     title: []const u8,
     width: u32,
     height: u32,
-    flags: u64 = 0,
+    flags: Flags,
 };
 
 const Self = @This();
@@ -22,7 +38,7 @@ pub fn init(desc: Descriptor) !Self {
         desc.title.ptr,
         @intCast(desc.width),
         @intCast(desc.height),
-        desc.flags,
+        desc.flags.toUint64(),
     ) orelse return error.CreateWindow;
 
     return Self{
