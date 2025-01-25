@@ -4,6 +4,8 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
+const OpaqueState = @import("hot_reload/opaque_state.zig").OpaqueState;
+
 const Context = @import("sequoia/core/context.zig");
 const App = @import("sequoia/core/app.zig");
 const Window = @import("sequoia/core/window.zig");
@@ -18,8 +20,6 @@ const Vertex = @import("sequoia/render/vertices.zig").ColoredVertex;
 
 const MB = 1024 * 1024;
 
-const StateOpaque = *anyopaque;
-
 const State = struct {
     static_alloc: std.heap.GeneralPurposeAllocator(.{}),
     frame_alloc: std.heap.ArenaAllocator,
@@ -31,35 +31,38 @@ const State = struct {
     dynamic_pipeline: Pipeline,
 };
 
-pub export fn init() ?StateOpaque {
+pub export fn init(opaque_state: *OpaqueState) void {
     const state = gameInit() catch |err| {
         std.debug.print("Failed to initialize game: {any}\n", .{err});
-        return null;
+        return;
     };
-    return @ptrCast(state);
+
+    opaque_state.ptr = @ptrCast(state);
+    opaque_state.size = @sizeOf(State);
 }
 
-pub export fn deinit(state_opaque: StateOpaque) void {
-    const state = fromOpaquePtr(state_opaque);
+pub export fn deinit(opaque_state: *OpaqueState) void {
+    const state = opaque_state.toState(State);
 
     state.transfer_buf.deinit(state.ctx.device.ptr);
     state.static_pipeline.deinit(state.ctx.device.ptr);
+    state.dynamic_pipeline.deinit(state.ctx.device.ptr);
     state.ctx.deinit();
 
     state.frame_alloc.deinit();
     _ = state.static_alloc.deinit();
 }
 
-pub export fn reload(state_opaque: StateOpaque) void {
-    const state = fromOpaquePtr(state_opaque);
+pub export fn reload(opaque_state: *OpaqueState) void {
+    const state = opaque_state.toState(State);
 
     gameReload(state) catch |err| {
         std.debug.print("Failed to reload game: {any}\n", .{err});
     };
 }
 
-pub export fn tick(state_opaque: StateOpaque) bool {
-    const state = fromOpaquePtr(state_opaque);
+pub export fn tick(opaque_state: *OpaqueState) bool {
+    const state = opaque_state.toState(State);
 
     return gameTick(state) catch |err| {
         std.debug.print("Failed to tick game: {any}\n", .{err});
@@ -67,8 +70,8 @@ pub export fn tick(state_opaque: StateOpaque) bool {
     };
 }
 
-pub export fn draw(state_opaque: StateOpaque) void {
-    const state = fromOpaquePtr(state_opaque);
+pub export fn draw(opaque_state: *OpaqueState) void {
+    const state = opaque_state.toState(State);
 
     gameDraw(state) catch |err| {
         std.debug.print("Failed to draw game: {any}\n", .{err});
@@ -305,8 +308,8 @@ fn loadStaticData(
     transfer_buf: *TransferBuffer,
 ) !void {
     var vertices = [_]Vertex{
-        .{ .pos = .{ -1, -1 }, .color = .{ 0, 1, 0, 1 } },
-        .{ .pos = .{ 0, 1 }, .color = .{ 0, 1, 0, 1 } },
+        .{ .pos = .{ -0.95, -0.95 }, .color = .{ 0, 1, 0, 1 } },
+        .{ .pos = .{ 0, 0.98 }, .color = .{ 0, 1, 0, 1 } },
         .{ .pos = .{ 0.72, -0.24 }, .color = .{ 1, 0, 1, 1 } },
         .{ .pos = .{ -0.8, 0.8 }, .color = .{ 1, 1, 1, 1 } },
     };

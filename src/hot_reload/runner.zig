@@ -1,11 +1,12 @@
 const std = @import("std");
 
-const State = *anyopaque;
-const InitFn = *const fn () ?State;
-const DeinitFn = *const fn (State) void;
-const ReloadFn = *const fn (State) void;
-const TickFn = *const fn (State) bool;
-const DrawFn = *const fn (State) void;
+const State = @import("opaque_state.zig").OpaqueState;
+
+const InitFn = *const fn (*State) void;
+const DeinitFn = *const fn (*State) void;
+const ReloadFn = *const fn (*State) void;
+const TickFn = *const fn (*State) bool;
+const DrawFn = *const fn (*State) void;
 
 const Self = @This();
 
@@ -20,7 +21,7 @@ fn_draw: DrawFn,
 pub fn init(path: []const u8) !Self {
     var self = Self{
         .lib = try std.DynLib.open(path),
-        .state = undefined,
+        .state = State.empty(),
         .fn_init = undefined,
         .fn_deinit = undefined,
         .fn_reload = undefined,
@@ -28,12 +29,13 @@ pub fn init(path: []const u8) !Self {
         .fn_tick = undefined,
     };
     try self.load();
-    self.state = self.fn_init() orelse return error.InitFailed;
+    self.fn_init(&self.state);
+    if (self.state.size == 0) return error.InitFailed;
     return self;
 }
 
 fn deinit(self: *Self) void {
-    self.fn_deinit(self.state);
+    self.fn_deinit(&self.state);
     self.lib.close();
 }
 
@@ -41,15 +43,15 @@ pub fn reload(self: *Self, path: []const u8) !void {
     self.lib.close();
     self.lib = try std.DynLib.open(path);
     try self.load();
-    self.fn_reload(self.state);
+    self.fn_reload(&self.state);
 }
 
 pub fn tick(self: *Self) bool {
-    return self.fn_tick(self.state);
+    return self.fn_tick(&self.state);
 }
 
 pub fn draw(self: *Self) void {
-    self.fn_draw(self.state);
+    self.fn_draw(&self.state);
 }
 
 fn load(self: *Self) !void {
