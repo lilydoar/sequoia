@@ -3,7 +3,7 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
-const TransferQueue = @import("transfer_queue.zig");
+const TransferBuffer = @import("transfer_buffer.zig");
 
 pub const Descriptor = struct {
     capacity: u32,
@@ -48,7 +48,7 @@ pub fn bind(
     );
 }
 
-pub fn upload(self: *Self, queue: *TransferQueue, data: []u8) !void {
+pub fn upload(self: *Self, queue: *TransferBuffer, data: []u8) !void {
     if (@as(u32, @intCast(data.len)) > self.desc.capacity)
         return error.BufferTooSmall;
     try queue.stage(.{

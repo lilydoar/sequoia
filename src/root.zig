@@ -13,7 +13,7 @@ const Shader = @import("sequoia/render/shader.zig");
 const VertexBuffer = @import("sequoia/render/vertex_buffer.zig");
 const IndexBuffer = @import("sequoia/render/index_buffer.zig");
 const Pipeline = @import("sequoia/render/pipeline.zig");
-const TransferQueue = @import("sequoia/render/transfer_queue.zig");
+const TransferBuffer = @import("sequoia/render/transfer_buffer.zig");
 const Vertex = @import("sequoia/render/vertices.zig").ColoredVertex;
 
 const MB = 1024 * 1024;
@@ -27,7 +27,7 @@ const State = struct {
     ctx: Context,
 
     pipeline: Pipeline,
-    transfer_queue: TransferQueue,
+    transfer_buf: TransferBuffer,
 };
 
 pub export fn init() ?StateOpaque {
@@ -41,7 +41,7 @@ pub export fn init() ?StateOpaque {
 pub export fn deinit(state_opaque: StateOpaque) void {
     const state = fromOpaquePtr(state_opaque);
 
-    state.transfer_queue.deinit(state.ctx.device.ptr);
+    state.transfer_buf.deinit(state.ctx.device.ptr);
     state.pipeline.deinit(state.ctx.device.ptr);
     state.ctx.deinit();
 
@@ -173,13 +173,13 @@ fn gameInit() !*State {
         idx_buf,
     );
 
-    var queue = try TransferQueue.init(
+    var transfer_buf = try TransferBuffer.init(
         static_alloc,
         ctx.device.ptr,
         .{ .capacity = MB },
     );
 
-    try loadStaticData(ctx.device, &pipeline, &queue);
+    try loadStaticData(ctx.device, &pipeline, &transfer_buf);
 
     const state = try static_alloc.create(State);
     state.static_alloc = gpa;
@@ -188,7 +188,7 @@ fn gameInit() !*State {
     state.ctx = ctx;
 
     state.pipeline = pipeline;
-    state.transfer_queue = queue;
+    state.transfer_buf = transfer_buf;
 
     return state;
 }
@@ -197,7 +197,7 @@ fn gameReload(state: *State) !void {
     try loadStaticData(
         state.ctx.device,
         &state.pipeline,
-        &state.transfer_queue,
+        &state.transfer_buf,
     );
 }
 
@@ -242,19 +242,23 @@ fn appInit() !App {
     return app;
 }
 
-fn loadStaticData(device: Device, pipeline: *Pipeline, queue: *TransferQueue) !void {
+fn loadStaticData(
+    device: Device,
+    pipeline: *Pipeline,
+    transfer_buf: *TransferBuffer,
+) !void {
     var vertices = [_]Vertex{
         .{ .pos = .{ -1, -1 }, .color = .{ 0, 1, 0, 1 } },
         .{ .pos = .{ 0, 1 }, .color = .{ 0, 1, 0, 1 } },
         .{ .pos = .{ 0.72, -0.24 }, .color = .{ 1, 0, 1, 1 } },
         .{ .pos = .{ -0.8, 0.8 }, .color = .{ 1, 1, 1, 1 } },
     };
-    try pipeline.vert_bufs.items[0].upload(queue, std.mem.sliceAsBytes(&vertices));
+    try pipeline.vert_bufs.items[0].upload(transfer_buf, std.mem.sliceAsBytes(&vertices));
 
     var indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
-    try pipeline.idx_buf.upload(queue, std.mem.sliceAsBytes(&indices));
+    try pipeline.idx_buf.upload(transfer_buf, std.mem.sliceAsBytes(&indices));
 
-    try queue.flush(device.ptr);
+    try transfer_buf.flush(device.ptr);
 }
 
 fn fromOpaquePtr(ptr: *anyopaque) *State {

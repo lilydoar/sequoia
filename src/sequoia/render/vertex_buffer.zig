@@ -3,7 +3,7 @@ const sdl = @cImport({
     @cInclude("SDL3/SDL.h");
 });
 
-const TransferQueue = @import("transfer_queue.zig");
+const TransferBuffer = @import("transfer_buffer.zig");
 
 pub const Descriptor = struct {
     // FIXME: This doesn't need to be a struct. The size can be calculated from the format
@@ -61,7 +61,7 @@ pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass, slot: u32) void {
     sdl.SDL_BindGPUVertexBuffers(pass, slot, &.{ .buffer = self.ptr }, 1);
 }
 
-pub fn upload(self: *Self, queue: *TransferQueue, data: []u8) !void {
+pub fn upload(self: *Self, queue: *TransferBuffer, data: []u8) !void {
     if (@as(u32, @intCast(data.len)) > self.desc.capacity)
         return error.BufferTooSmall;
     try queue.stage(.{

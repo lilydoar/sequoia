@@ -19,12 +19,8 @@ const Item = struct {
 const Self = @This();
 
 desc: Descriptor,
-items: std.ArrayList(Item),
 buf: *sdl.SDL_GPUTransferBuffer,
-
-// TODO: I think I want to turn this transfer_queue struct into just a
-// TransferBuffer struct. Will still have a nice API. And will better
-// fit the pattern I've been following to wrap SDL
+items: std.ArrayList(Item),
 
 pub fn init(
     alloc: std.mem.Allocator,
