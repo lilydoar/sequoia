@@ -10,6 +10,7 @@ const Context = @import("sequoia/core/context.zig");
 const App = @import("sequoia/core/app.zig");
 const Window = @import("sequoia/core/window.zig");
 const Device = @import("sequoia/core/device.zig");
+const Time = @import("sequoia/core/time.zig");
 
 const Shader = @import("sequoia/render/shader.zig");
 const VertexBuffer = @import("sequoia/render/vertex_buffer.zig");
@@ -26,6 +27,7 @@ const State = struct {
     rng: std.Random.DefaultPrng,
     ctx: Context,
 
+    clock: f32,
     transfer_buf: TransferBuffer,
     static_pipeline: Pipeline,
     dynamic_pipeline: Pipeline,
@@ -221,6 +223,7 @@ fn gameInit() !*State {
     state.rng = rng;
     state.ctx = ctx;
 
+    state.clock = 0.0;
     state.transfer_buf = transfer_buf;
     state.static_pipeline = static_pipeline;
     state.dynamic_pipeline = dynamic_pipeline;
@@ -237,6 +240,9 @@ fn gameReload(state: *State) !void {
 }
 
 fn gameTick(state: *State) !bool {
+    state.ctx.time = state.ctx.time.tick();
+    state.clock += 0.01;
+
     var event: sdl.SDL_Event = undefined;
     while (sdl.SDL_PollEvent(&event)) {
         if (event.type == sdl.SDL_EVENT_QUIT) {
@@ -253,6 +259,7 @@ fn gameTick(state: *State) !bool {
         state.ctx.device,
         &state.dynamic_pipeline,
         &state.transfer_buf,
+        state.clock,
     );
 
     return true;
@@ -308,10 +315,10 @@ fn loadStaticData(
     transfer_buf: *TransferBuffer,
 ) !void {
     var vertices = [_]Vertex{
-        .{ .pos = .{ -0.95, -0.95 }, .color = .{ 0, 1, 0, 1 } },
-        .{ .pos = .{ 0, 0.98 }, .color = .{ 0, 1, 0, 1 } },
-        .{ .pos = .{ 0.72, -0.24 }, .color = .{ 1, 0, 1, 1 } },
-        .{ .pos = .{ -0.8, 0.8 }, .color = .{ 1, 1, 1, 1 } },
+        .{ .pos = .{ -0.95, -0.95 }, .col = .{ 0, 1, 0, 1 } },
+        .{ .pos = .{ 0, 0.98 }, .col = .{ 0, 1, 0, 1 } },
+        .{ .pos = .{ 0.72, -0.24 }, .col = .{ 1, 0, 1, 1 } },
+        .{ .pos = .{ -0.8, 0.8 }, .col = .{ 1, 1, 1, 1 } },
     };
     try pipeline.vert_bufs.items[0].upload(transfer_buf, std.mem.sliceAsBytes(&vertices));
 
@@ -325,13 +332,20 @@ fn loadDynamicData(
     device: Device,
     pipeline: *Pipeline,
     transfer_buf: *TransferBuffer,
+    timeMS: f32,
 ) !void {
     var vertices = [_]Vertex{
-        .{ .pos = .{ -0.2, -0.8 }, .color = .{ 0.4, 1, 0, 1 } },
-        .{ .pos = .{ 0.4, 0.2 }, .color = .{ 0, 1, 0.8, 1 } },
-        .{ .pos = .{ 0.65, -0.46 }, .color = .{ 0.2, 0, 1, 1 } },
-        .{ .pos = .{ -0.7, 0.5 }, .color = .{ 1, 0.5, 1, 1 } },
+        .{ .pos = .{ -0.2, -0.8 }, .col = .{ 0.4, 1, 0, 1 } },
+        .{ .pos = .{ 0.4, 0.2 }, .col = .{ 0, 1, 0.8, 1 } },
+        .{ .pos = .{ 0.65, -0.46 }, .col = .{ 0.2, 0, 1, 1 } },
+        .{ .pos = .{ -0.7, 0.5 }, .col = .{ 1, 0.5, 1, 1 } },
     };
+
+    rotateVertex(&vertices[0], timeMS);
+    rotateVertex(&vertices[1], timeMS);
+    rotateVertex(&vertices[2], timeMS);
+    rotateVertex(&vertices[3], timeMS);
+
     try pipeline.vert_bufs.items[0].upload(transfer_buf, std.mem.sliceAsBytes(&vertices));
 
     var indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
@@ -342,4 +356,19 @@ fn loadDynamicData(
 
 fn fromOpaquePtr(ptr: *anyopaque) *State {
     return @ptrCast(@alignCast(ptr));
+}
+
+fn rotateX(x: f32, y: f32, angle: f32) f32 {
+    return x * std.math.cos(angle) - y * std.math.sin(angle);
+}
+
+fn rotateY(x: f32, y: f32, angle: f32) f32 {
+    return x * std.math.sin(angle) + y * std.math.cos(angle);
+}
+
+fn rotateVertex(vertex: *Vertex, angle: f32) void {
+    const orig_x = vertex.pos[0];
+    const orig_y = vertex.pos[1];
+    vertex.pos[0] = rotateX(orig_x, orig_y, angle);
+    vertex.pos[1] = rotateY(orig_x, orig_y, angle);
 }
