@@ -55,14 +55,15 @@ pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass, slot: u32) void {
     sdl.SDL_BindGPUVertexBuffers(pass, slot, &.{ .buffer = self.ptr }, 1);
 }
 
-pub fn upload(self: *Self, queue: *TransferBuffer, data: []u8) !void {
-    if (@as(u32, @intCast(data.len)) > self.desc.capacity)
+pub fn upload(self: *Self, transfer_buf: *TransferBuffer, data: []const u8) !void {
+    const len = @as(u32, @intCast(data.len));
+    if (len > self.desc.capacity)
         return error.BufferTooSmall;
-    try queue.stage(.{
+    try transfer_buf.stage(.{
         .data = data,
         .location = .{ .buf = self.ptr },
     });
-    self.size = @intCast(data.len);
+    self.size = len;
 }
 
 pub fn vertexElementSize(format: sdl.SDL_GPUVertexElementFormat) u32 {

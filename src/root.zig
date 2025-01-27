@@ -17,7 +17,11 @@ const VertexBuffer = @import("sequoia/render/vertex_buffer.zig");
 const IndexBuffer = @import("sequoia/render/index_buffer.zig");
 const Pipeline = @import("sequoia/render/pipeline.zig");
 const TransferBuffer = @import("sequoia/render/transfer_buffer.zig");
-const Vertex = @import("sequoia/render/vertices.zig").ColoredVertex;
+const Texture2D = @import("sequoia/render/texture2d.zig");
+const Sampler = @import("sequoia/render/sampler.zig");
+
+const VertexCol = @import("sequoia/render/vertices.zig").ColoredVertex;
+const VertexTex = @import("sequoia/render/vertices.zig").TexturedVertex;
 
 const MB = 1024 * 1024;
 
@@ -125,6 +129,15 @@ fn gameInit() !*State {
                         ctx.device.ptr,
                         ctx.window.ptr,
                     ),
+                    .blend_state = .{
+                        .enable_blend = true,
+                        .color_blend_op = sdl.SDL_GPU_BLENDOP_ADD,
+                        .alpha_blend_op = sdl.SDL_GPU_BLENDOP_ADD,
+                        .src_color_blendfactor = sdl.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+                        .dst_color_blendfactor = sdl.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                        .src_alpha_blendfactor = sdl.SDL_GPU_BLENDFACTOR_SRC_ALPHA,
+                        .dst_alpha_blendfactor = sdl.SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                    },
                 },
                 .num_color_targets = 1,
             },
@@ -135,7 +148,7 @@ fn gameInit() !*State {
             try Shader.buildShaderPath(
                 scope_alloc,
                 "gen/shaders",
-                "identity",
+                "vertex_textured",
                 sdl.SDL_GPU_SHADERSTAGE_VERTEX,
                 ctx.device.format,
             ),
@@ -146,7 +159,7 @@ fn gameInit() !*State {
             try Shader.buildShaderPath(
                 scope_alloc,
                 "gen/shaders",
-                "identity",
+                "texture",
                 sdl.SDL_GPU_SHADERSTAGE_FRAGMENT,
                 ctx.device.format,
             ),
@@ -154,14 +167,24 @@ fn gameInit() !*State {
         &.{try VertexBuffer.init(
             scope_alloc,
             ctx.device.ptr,
-            @sizeOf(Vertex) * 4,
+            MB,
             &.{
                 sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
-                sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
+                sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
             },
         )},
         try IndexBuffer.init(ctx.device.ptr, .{
-            .capacity = @sizeOf(f16) * 6,
+            .capacity = MB,
+        }),
+        &.{try Texture2D.fromFile(
+            static_alloc,
+            ctx.device.ptr,
+            "gen/sprites/ghast.png",
+        )},
+        try Sampler.init(ctx.device.ptr, .{
+            .min_filter = sdl.SDL_GPU_FILTER_NEAREST,
+            .mag_filter = sdl.SDL_GPU_FILTER_NEAREST,
+            .address_mode = sdl.SDL_GPU_SAMPLERADDRESSMODE_REPEAT,
         }),
     );
 
@@ -188,7 +211,7 @@ fn gameInit() !*State {
             try Shader.buildShaderPath(
                 scope_alloc,
                 "gen/shaders",
-                "identity",
+                "vertex_colored",
                 sdl.SDL_GPU_SHADERSTAGE_VERTEX,
                 ctx.device.format,
             ),
@@ -207,16 +230,19 @@ fn gameInit() !*State {
         &.{try VertexBuffer.init(
             scope_alloc,
             ctx.device.ptr,
-            @sizeOf(Vertex) * 4,
+            MB,
             &.{
                 sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT2,
                 sdl.SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4,
             },
         )},
         try IndexBuffer.init(ctx.device.ptr, .{
-            .capacity = @sizeOf(f16) * 6,
+            .capacity = MB,
         }),
+        &.{},
+        null,
     );
+
     const state = try static_alloc.create(State);
     state.static_alloc = gpa;
     state.frame_alloc = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -291,11 +317,11 @@ fn gameDraw(state: *State) !void {
         null,
     ) orelse return error.BeginGPURenderPass;
 
-    state.static_pipeline.bind(pass);
-    state.static_pipeline.draw(pass);
-
     state.dynamic_pipeline.bind(pass);
     state.dynamic_pipeline.draw(pass);
+
+    state.static_pipeline.bind(pass);
+    state.static_pipeline.draw(pass);
 
     sdl.SDL_EndGPURenderPass(pass);
     if (!sdl.SDL_SubmitGPUCommandBuffer(cmd_buf))
@@ -314,16 +340,22 @@ fn loadStaticData(
     pipeline: *Pipeline,
     transfer_buf: *TransferBuffer,
 ) !void {
-    var vertices = [_]Vertex{
-        .{ .pos = .{ -0.95, -0.95 }, .col = .{ 0, 1, 0, 1 } },
-        .{ .pos = .{ 0, 0.98 }, .col = .{ 0, 1, 0, 1 } },
-        .{ .pos = .{ 0.72, -0.24 }, .col = .{ 1, 0, 1, 1 } },
-        .{ .pos = .{ -0.8, 0.8 }, .col = .{ 1, 1, 1, 1 } },
+    const vertices = [_]VertexTex{
+        .{ .pos = .{ -0.95, -0.95 }, .uv = .{ 0, 1 } },
+        .{ .pos = .{ 0, 0.98 }, .uv = .{ 1, 0 } },
+        .{ .pos = .{ 0.72, -0.24 }, .uv = .{ 0, 0 } },
+        .{ .pos = .{ -0.8, 0.8 }, .uv = .{ 1, 1 } },
+        .{ .pos = .{ 0, 0 }, .uv = .{ 0, 1 } },
+        .{ .pos = .{ 0.5, 0 }, .uv = .{ 1, 1 } },
+        .{ .pos = .{ 0.5, 0.5 }, .uv = .{ 1, 0 } },
+        .{ .pos = .{ 0, 0.5 }, .uv = .{ 0, 0 } },
     };
     try pipeline.vert_bufs.items[0].upload(transfer_buf, std.mem.sliceAsBytes(&vertices));
 
-    var indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
+    var indices = [_]u16{ 0, 2, 1, 0, 1, 3, 4, 5, 6, 4, 6, 7 };
     try pipeline.idx_buf.upload(transfer_buf, std.mem.sliceAsBytes(&indices));
+
+    try pipeline.textures.items[0].upload(transfer_buf);
 
     try transfer_buf.flush(device.ptr);
 }
@@ -334,7 +366,7 @@ fn loadDynamicData(
     transfer_buf: *TransferBuffer,
     timeMS: f32,
 ) !void {
-    var vertices = [_]Vertex{
+    var vertices = [_]VertexCol{
         .{ .pos = .{ -0.2, -0.8 }, .col = .{ 0.4, 1, 0, 1 } },
         .{ .pos = .{ 0.4, 0.2 }, .col = .{ 0, 1, 0.8, 1 } },
         .{ .pos = .{ 0.65, -0.46 }, .col = .{ 0.2, 0, 1, 1 } },
@@ -346,9 +378,12 @@ fn loadDynamicData(
     rotateVertex(&vertices[2], timeMS);
     rotateVertex(&vertices[3], timeMS);
 
-    try pipeline.vert_bufs.items[0].upload(transfer_buf, std.mem.sliceAsBytes(&vertices));
+    try pipeline.vert_bufs.items[0].upload(
+        transfer_buf,
+        std.mem.sliceAsBytes(&vertices),
+    );
 
-    var indices = [_]u16{ 0, 1, 2, 0, 3, 1 };
+    var indices = [_]u16{ 0, 2, 1, 0, 1, 3 };
     try pipeline.idx_buf.upload(transfer_buf, std.mem.sliceAsBytes(&indices));
 
     try transfer_buf.flush(device.ptr);
@@ -366,7 +401,7 @@ fn rotateY(x: f32, y: f32, angle: f32) f32 {
     return x * std.math.sin(angle) + y * std.math.cos(angle);
 }
 
-fn rotateVertex(vertex: *Vertex, angle: f32) void {
+fn rotateVertex(vertex: *VertexCol, angle: f32) void {
     const orig_x = vertex.pos[0];
     const orig_y = vertex.pos[1];
     vertex.pos[0] = rotateX(orig_x, orig_y, angle);

@@ -10,9 +10,14 @@ pub const Descriptor = struct {
 };
 
 const Item = struct {
-    data: []u8,
+    data: []const u8,
     location: union(enum) {
         buf: *sdl.SDL_GPUBuffer,
+        tex2d: struct {
+            ptr: *sdl.SDL_GPUTexture,
+            w: u32,
+            h: u32,
+        },
     },
 };
 
@@ -100,6 +105,23 @@ fn uploadItem(
                 &.{
                     .buffer = buf,
                     .size = @intCast(item.data.len),
+                },
+                true,
+            );
+        },
+        .tex2d => |tex| {
+            sdl.SDL_UploadToGPUTexture(
+                pass,
+                &.{
+                    .transfer_buffer = self.buf,
+                    .pixels_per_row = tex.w,
+                    .rows_per_layer = tex.h,
+                },
+                &.{
+                    .texture = tex.ptr,
+                    .w = tex.w,
+                    .h = tex.h,
+                    .d = 1,
                 },
                 true,
             );

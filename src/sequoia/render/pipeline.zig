@@ -6,6 +6,8 @@ const sdl = @cImport({
 const Shader = @import("shader.zig");
 const VertexBuffer = @import("vertex_buffer.zig");
 const IndexBuffer = @import("index_buffer.zig");
+const Texture2D = @import("texture2d.zig");
+const Sampler = @import("sampler.zig");
 
 pub const Descriptor = struct {
     primitive: sdl.SDL_GPUPrimitiveType =
@@ -21,11 +23,13 @@ const BufferDesc = sdl.SDL_GPUVertexBufferDescription;
 const Self = @This();
 
 desc: Descriptor,
+ptr: ?*sdl.SDL_GPUGraphicsPipeline = null,
 vert_shader: Shader,
 frag_shader: Shader,
 vert_bufs: std.ArrayList(VertexBuffer),
 idx_buf: IndexBuffer,
-ptr: ?*sdl.SDL_GPUGraphicsPipeline = null,
+textures: std.ArrayList(Texture2D),
+sampler: ?Sampler = null,
 
 pub fn init(
     static_alloc: std.mem.Allocator,
@@ -36,16 +40,19 @@ pub fn init(
     frag_shader: Shader,
     vert_bufs: []const VertexBuffer,
     index_buf: IndexBuffer,
+    textures: []const Texture2D,
+    sampler: ?Sampler,
 ) !Self {
     var bufs = std.ArrayList(VertexBuffer).init(static_alloc);
     try bufs.appendSlice(vert_bufs);
 
+    var texs = std.ArrayList(Texture2D).init(static_alloc);
+    try texs.appendSlice(textures);
+
+    if (texs.items.len > 0 and sampler == null) return error.MissingSampler;
+
     return Self{
         .desc = desc,
-        .vert_shader = vert_shader,
-        .frag_shader = frag_shader,
-        .vert_bufs = bufs,
-        .idx_buf = index_buf,
         .ptr = try buildPipeline(
             scope_alloc,
             device,
@@ -54,6 +61,12 @@ pub fn init(
             frag_shader,
             vert_bufs,
         ),
+        .vert_shader = vert_shader,
+        .frag_shader = frag_shader,
+        .vert_bufs = bufs,
+        .idx_buf = index_buf,
+        .textures = texs,
+        .sampler = sampler,
     };
 }
 
@@ -63,6 +76,9 @@ pub fn deinit(self: Self, device: *sdl.SDL_GPUDevice) void {
     self.frag_shader.deinit(device);
     for (self.vert_bufs.items) |buf| buf.deinit(device);
     self.vert_bufs.deinit();
+    for (self.textures.items) |*tex| tex.deinit(device);
+    self.textures.deinit();
+    if (self.sampler) |sampler| sampler.deinit(device);
     self.idx_buf.deinit(device);
 }
 
@@ -70,6 +86,11 @@ pub fn bind(self: Self, pass: *sdl.SDL_GPURenderPass) void {
     sdl.SDL_BindGPUGraphicsPipeline(pass, self.ptr);
     for (self.vert_bufs.items, 0..) |buf, i| buf.bind(pass, @intCast(i));
     self.idx_buf.bind(pass);
+    for (self.textures.items, 0..) |*tex, i| tex.bind(
+        pass,
+        @intCast(i),
+        self.sampler.?.ptr,
+    );
 }
 
 pub fn draw(self: Self, pass: *sdl.SDL_GPURenderPass) void {
