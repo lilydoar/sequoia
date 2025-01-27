@@ -6,6 +6,10 @@
             .url = "git+https://github.com/castholm/SDL.git#bbc8dfb78c2a71f10b21548b58dfe5ac46cc3fef",
             .hash = "122046c6dcdcf941e6e5b1e8fa273185d04420e56436d47b906308eaf70208222f59",
         },
+        .zigimg = .{
+            .url = "git+https://github.com/zigimg/zigimg.git#9fca33434ed1dbc1d34ebaefcf046a8702f9b1cb",
+            .hash = "1220ad1b5a659cae9cf50e936b2d82778defe52f70a2f266c1afe96be809f604287a",
+        },
     },
     .paths = .{
         "build.zig",
