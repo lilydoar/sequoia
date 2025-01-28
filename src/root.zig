@@ -11,6 +11,7 @@ const App = @import("sequoia/core/app.zig");
 const Window = @import("sequoia/core/window.zig");
 const Device = @import("sequoia/core/device.zig");
 const Time = @import("sequoia/core/time.zig");
+const FontLoader = @import("sequoia/core/font_loader.zig");
 
 const Shader = @import("sequoia/render/shader.zig");
 const VertexBuffer = @import("sequoia/render/vertex_buffer.zig");
@@ -110,6 +111,10 @@ fn gameInit() !*State {
                 .borderless = false,
             },
         },
+    );
+
+    try ctx.fonts.loadFont(
+        "res/fonts/MartianMono/MartianMonoNerdFontMono-Regular.ttf",
     );
 
     var transfer_buf = try TransferBuffer.init(
