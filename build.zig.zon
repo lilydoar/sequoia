@@ -10,6 +10,10 @@
             .url = "git+https://github.com/zigimg/zigimg.git#9fca33434ed1dbc1d34ebaefcf046a8702f9b1cb",
             .hash = "1220ad1b5a659cae9cf50e936b2d82778defe52f70a2f266c1afe96be809f604287a",
         },
+        .freetype = .{
+            .url = "git+https://github.com/hexops/mach-freetype.git#d63efa5534c17f3a12ed3d327e0ad42a64adc20a",
+            .hash = "1220adfccce3dbc4e4fa8650fdaec110a676f6b8a1462ed6ef422815207f8288e9d2",
+        },
     },
     .paths = .{
         "build.zig",

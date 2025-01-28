@@ -35,6 +35,13 @@ fn sequoiaLib(b: *std.Build, opt: BuildOptions) *std.Build.Step.Compile {
     const sdl_lib = sdl_dep.artifact("SDL3");
     lib.root_module.linkLibrary(sdl_lib);
 
+    const freetype_dep = b.dependency("freetype", .{
+        .target = opt.target,
+        .optimize = opt.optimize,
+    });
+    lib.root_module.addImport("freetype", freetype_dep.module("mach-freetype"));
+    lib.root_module.addImport("harfbuzz", freetype_dep.module("mach-harfbuzz"));
+
     const zigimg_dep = b.dependency("zigimg", .{
         .target = opt.target,
         .optimize = opt.optimize,
