@@ -1,9 +1,7 @@
 # Game Engine Development Curriculum
 
-I love your approach of learning through a series of increasingly complex projects! Building up an engine while making real games will give you both practical experience and a growing codebase to build upon. Let's design a curriculum that gradually introduces new concepts while reinforcing what you've already learned.
-
 ## Foundation: Pong
-You're right that Pong is an excellent starting point. It covers fundamental systems while remaining manageable.
+Pong is an excellent starting point. It covers fundamental systems while remaining manageable.
 
 **Core Engine Components:**
 - Window creation and management
