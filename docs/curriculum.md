@@ -33,6 +33,9 @@ Introduces grid-based gameplay and more complex state management.
 - Menu system improvements
 - Game state serialization (high scores)
 
+## Project 4: Bullet Heaven
+Introduces a more complex game loop, entity types, and powerups
+
 ## Project 4: Platformer (Mario-like)
 Now we're moving to more complex game mechanics and world representation.
 
